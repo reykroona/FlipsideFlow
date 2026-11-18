@@ -223,6 +223,7 @@ function vinylApp() {
             await this.loadImportList();
             this.chooseDefaultImportTab();
             await this.initRecording();
+            this.updateSetupPrompt();
             if (typeof this.initFlow === 'function') await this.initFlow();
 
             this.$watch('currentFile', (file) => {
@@ -677,38 +678,62 @@ function vinylApp() {
             }
         },
 
-        /**
-         * Submit setup with Discogs token
-         */
+        updateSetupPrompt() {
+            this.setupRequired = !this.recordingActive && (!this.discogsConfigured
+                || (this.recordingEnabled && !this.songRecognition.configured));
+        },
+
+        async saveDiscogsToken() {
+            const response = await fetch('/api/setup/discogs-token', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: this.setupToken.trim(), user_agent: this.setupUserAgent })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Setup failed');
+            this.discogsConfigured = true;
+            this.setupToken = '';
+            this.notify(`Connected to Discogs as ${data.username}.`, { type: 'success' });
+        },
+
+        /** Settings can still update Discogs independently. */
         async submitSetup() {
+            if (this.setupLoading) return;
             this.setupLoading = true;
             this.setupError = null;
-
             try {
-                const response = await fetch('/api/setup/discogs-token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        token: this.setupToken,
-                        user_agent: this.setupUserAgent
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Setup failed');
-                }
-
-                // Success!
-                this.discogsConfigured = true;
+                await this.saveDiscogsToken();
                 this.setupRequired = false;
-                this.setupToken = '';
-
-                this.notify(`Connected to Discogs as ${data.username}.`, { type: 'success' });
-
             } catch (error) {
                 this.setupError = error.message;
+            } finally {
+                this.setupLoading = false;
+            }
+        },
+
+        /** Save either or both optional services; retain successes if the other fails. */
+        async submitWelcomeSetup() {
+            if (this.setupLoading || this.recognitionBusy) return;
+            this.setupLoading = true;
+            this.setupError = null;
+            const errors = [];
+            try {
+                if (this.setupToken.trim()) {
+                    try { await this.saveDiscogsToken(); }
+                    catch (error) { errors.push(`Discogs: ${error.message}`); }
+                }
+                if (this.recordingEnabled && this.recognitionTokenInput.trim()) {
+                    this.recognitionBusy = true;
+                    try {
+                        const data = await this.recordingRequest('recognition/token', {token: this.recognitionTokenInput});
+                        this._recordingSeq++;
+                        this.songRecognition.configured = data.configured;
+                        this.recognitionTokenInput = '';
+                        this.recognitionNotice = 'AudD token saved locally. Validated on the next identification request.';
+                    } catch (error) { errors.push(`AudD: ${error.message}`); }
+                    finally { this.recognitionBusy = false; }
+                }
+                this.setupError = errors.length ? errors.join(' ') : null;
+                if (!errors.length) this.setupRequired = false;
             } finally {
                 this.setupLoading = false;
             }

@@ -831,30 +831,42 @@
 
         <!-- Setup Modal (First-Run) -->
         <div x-show="setupRequired" x-cloak class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-            <div class="bg-card rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div class="bg-card rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
                 <div class="text-center mb-6">
                     <h2 class="text-3xl font-bold text-primary mb-2">Welcome to FlipsideFlow</h2>
-                    <p class="text-secondary">Let's get you set up in seconds</p>
+                    <p class="text-secondary">Connect album lookup and automatic song recognition. Both are optional.</p>
                 </div>
 
                 <div class="space-y-4">
                     <!-- Token Input -->
                     <div>
                         <label class="block text-sm font-semibold text-secondary mb-2">
-                            Discogs API Token <span class="text-red-500">*</span>
+                            Discogs API token
                         </label>
                         <input
-                            type="text"
+                            type="password"
                             x-model="setupToken"
-                            placeholder="Paste your token here"
+                            autocomplete="off"
+                            :placeholder="discogsConfigured ? 'Already connected — paste to replace' : 'Paste your Discogs token'"
                             class="w-full px-4 py-3 border focus-primary rounded-lg text-sm"
                             style="border-color: var(--vf-line);"
                             :disabled="setupLoading"
-                            @keyup.enter="submitSetup()"
+                            @keyup.enter="submitWelcomeSetup()"
                         >
                         <p class="text-xs text-muted mt-1">
-                            FlipsideFlow needs this free token to search album metadata.
+                            Searches album artwork and tracklists. <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer" class="underline">Get a free Discogs token</a>.
                         </p>
+                        <p x-show="discogsConfigured" class="text-xs vf-ok mt-1">Connected to Discogs</p>
+                    </div>
+
+                    <div x-show="recordingEnabled" class="border-t pt-4" style="border-color: var(--vf-line);">
+                        <label class="block text-sm font-semibold text-secondary mb-2">AudD API token</label>
+                        <input type="password" x-model="recognitionTokenInput" autocomplete="off" maxlength="512"
+                               :placeholder="songRecognition.configured ? 'Already saved — paste to replace' : 'Paste your AudD token'"
+                               :disabled="setupLoading || recognitionBusy" @keyup.enter="submitWelcomeSetup()" class="vf-input">
+                        <p class="text-xs text-muted mt-1">Identifies a short WAV excerpt after 2 minutes while recording continues. Discogs then finds the likely album.</p>
+                        <p class="text-xs text-secondary mt-2"><a href="https://dashboard.audd.io/" target="_blank" rel="noopener noreferrer" class="underline">Get an AudD token</a> · <a href="https://audd.io/pricing/" target="_blank" rel="noopener noreferrer" class="underline">Trial and usage pricing</a></p>
+                        <p x-show="songRecognition.configured" class="text-xs vf-ok mt-1">AudD token saved locally; validated on the next identification request.</p>
                     </div>
 
                     <!-- Error Message -->
@@ -862,41 +874,30 @@
                         <p class="text-sm text-red-800" x-text="setupError"></p>
                     </div>
 
-                    <!-- Instructions -->
-                    <div class="p-4 rounded-lg" style="background-color: rgba(229, 161, 0, 0.1);">
-                        <p class="text-sm text-secondary mb-2">
-                            <strong>Don't have a token yet?</strong>
-                        </p>
-                        <ol class="text-sm text-secondary space-y-1 list-decimal list-inside">
-                            <li>Go to <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer" class="font-semibold hover:underline" style="color: var(--vf-amber);">Discogs Settings</a></li>
-                            <li>Click "Generate new token"</li>
-                            <li>Copy and paste it above</li>
-                        </ol>
-                    </div>
-
                     <!-- Submit Button -->
                     <button
-                        @click="submitSetup()"
-                        :disabled="!setupToken || setupLoading"
+                        @click="submitWelcomeSetup()"
+                        :disabled="setupLoading || recognitionBusy || (!setupToken.trim() && !(recordingEnabled && recognitionTokenInput.trim()))"
                         class="w-full px-6 py-3 btn-primary rounded-lg font-semibold text-lg"
                     >
-                        <span x-show="!setupLoading">Continue</span>
+                        <span x-show="!setupLoading">Save and continue</span>
                         <span x-show="setupLoading" class="flex items-center justify-center gap-2">
                             <div class="spinner"></div>
-                            Validating...
+                            Saving...
                         </span>
                     </button>
                 </div>
 
                 <button
                     @click="setupRequired = false"
+                    :disabled="setupLoading || recognitionBusy"
                     class="w-full mt-3 text-sm text-secondary hover:underline"
                 >
-                    Skip for now — you can add the token later in Settings
+                    Skip for now — add tokens later in Settings
                 </button>
 
                 <p class="text-xs text-muted text-center mt-4">
-                    Your token is stored securely on your machine.
+                    Tokens are stored locally on your Mac. AudD receives only a short audio excerpt when identification runs.
                 </p>
             </div>
         </div>

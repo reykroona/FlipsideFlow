@@ -15,7 +15,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Use FlipsideFlow
 
-- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.2/FlipsideFlow-0.1.0-beta.2-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
+- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.3/FlipsideFlow-0.1.0-beta.3-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
 - 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
 - ⚙️ **Python local mode:** see [Manual Setup (Non-Docker)](#manual-setup-non-docker)
 
@@ -115,22 +115,18 @@ A full album recorded at 24-bit/96 kHz is about 1.5 GB, and uploading it through
 
 When you open FlipsideFlow for the first time, you'll see a welcome screen that guides you through setup in seconds:
 
-![FlipsideFlow Setup Screen](docs/modal.jpg)
+1. **Discogs token** — Generate a free token at [discogs.com/settings/developers](https://www.discogs.com/settings/developers) for album artwork and tracklists.
+2. **AudD token (macOS desktop)** — Get a token from the [AudD dashboard](https://dashboard.audd.io/) for automatic song recognition while recording. Trial and usage limits apply.
+3. **Save and continue** — Enter either or both tokens. Discogs is validated immediately; the saved AudD token is checked on the next identification request.
+4. **Or skip for now** — Both services are optional. Add or change tokens later in Settings.
 
-1. **Get your free Discogs API token** — Click the link in the setup screen or visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
-2. **Generate a new token** — Click "Generate new token" on the Discogs settings page
-3. **Copy and paste** — Paste your token into FlipsideFlow's setup screen
-4. **Click Continue** — Done! FlipsideFlow validates the token and you're ready to digitize
-
-**That's it!** 🎵 No hidden files, no terminal commands, no restart needed. Your token is saved securely and persists across Docker restarts.
-
-**Tip:** You can update your token anytime from the Settings (⚙️) menu in FlipsideFlow.
+Tokens are stored locally and persist across app restarts. If one service fails during setup, the other successful save is retained. The welcome screen appears when a service is missing, but does not interrupt a running recording. Docker/server mode asks only for Discogs.
 
 ## Desktop Apps (Beta)
 
 The downloadable beta is for **Apple Silicon Macs (M1 or newer) running macOS 14 Sonoma or later**. Windows and Intel Mac packaging recipes are included in the source, but this release supplies only an ARM64 Mac app.
 
-1. Download `FlipsideFlow-0.1.0-beta.2-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
+1. Download `FlipsideFlow-0.1.0-beta.3-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
 2. Unzip it and drag **FlipsideFlow.app** to **Applications**. Quit an older running copy before opening the new one.
 3. The beta is ad-hoc signed and **not notarized by Apple**. If macOS blocks it, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm.
 4. Allow microphone access when prompted, connect your Scarlett, and select its CoreAudio input. AudD and Discogs tokens are needed only for their online features.
@@ -319,7 +315,7 @@ Just like with Docker, FlipsideFlow will show you a welcome screen on first run:
 
 1. Visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers) and generate a free API token
 2. Paste it into the FlipsideFlow setup screen
-3. Click Continue — done!
+3. In the macOS desktop app, optionally add an AudD token too. Click **Save and continue**.
 
 Your token is saved to `config/settings.json` and works immediately without restart.
 
