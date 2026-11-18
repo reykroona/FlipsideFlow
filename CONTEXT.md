@@ -1,4 +1,4 @@
-# VinylFlow Domain Glossary
+# FlipsideFlow Domain Glossary
 
 Authoritative names for domain concepts. When code names drift from these terms, the code is wrong, not the glossary.
 

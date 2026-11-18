@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VinylFlow</title>
+    <title>FlipsideFlow</title>
     <!-- Vendored, pinned libraries (offline). See static/vendor/README.md -->
     <script src="/static/vendor/tailwindcss-3.4.17.js"></script>
     <script defer src="/static/vendor/alpinejs-3.17.4.min.js"></script>
@@ -11,10 +11,40 @@
     <script src="/static/vendor/wavesurfer-regions-7.8.10.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
+        /* FlipsideFlow palette: a dark, hardware-panel look (graphite panels, amber brand accent,
+           LED green/red for state). Every colour in this page comes from these tokens. */
+        :root {
+            --vf-page: #111315;
+            --vf-card: #191C1F;
+            --vf-raised: #23272B;
+            --vf-raised-2: #2C3136;
+            --vf-well: #0C0E10;
+            --vf-line: #353B41;
+            --vf-line-strong: #4A525A;
+            --vf-fg: #E9ECEE;
+            --vf-fg-2: #B9C0C6;
+            --vf-muted: #8B949C;
+            --vf-amber: #F0B323;
+            --vf-amber-hover: #FFC743;
+            --vf-amber-text: #F6C453;
+            --vf-on-amber: #1A1406;
+            --vf-amber-soft: rgba(240, 179, 35, 0.12);
+            --vf-ok: #3DDC84;
+            --vf-ok-soft: rgba(61, 220, 132, 0.12);
+            --vf-bad: #FF6B5E;
+            --vf-bad-solid: #D9473A;
+            --vf-bad-soft: rgba(255, 107, 94, 0.12);
+            /* Headings: Futura Bold, built into macOS (the app is offline, so no web fonts). */
+            --vf-font-display: 'Futura', 'Futura PT', 'Avenir Next', 'Century Gothic', 'Segoe UI', system-ui, sans-serif;
+            --vf-font-logo: 'Futura-CondensedExtraBold', 'Avenir Next Condensed', 'DIN Condensed', 'Arial Narrow', 'Futura', system-ui, sans-serif;
+            --vf-font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+            --vf-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+            color-scheme: dark;
+        }
 
         /* Toasts (see notify() in app.js). Colours checked for WCAG AA:
-           text #1E1E1E on #FAF9F6/#FFF6DD/#FDEDEB >= 14.6:1; icon + accent
-           colours >= 4.9:1 on their backgrounds; action link #8A5F00 >= 4.9:1. */
+           text #1E1E1E on var(--vf-card)/#FFF6DD/#FDEDEB >= 14.6:1; icon + accent
+           colours >= 4.9:1 on their backgrounds; action link var(--vf-amber-text) >= 4.9:1. */
         .toast-stack {
             position: fixed;
             right: 16px;
@@ -33,153 +63,134 @@
             gap: 10px;
             padding: 10px 12px;
             border-radius: 8px;
-            background-color: #FAF9F6;
-            color: #1E1E1E;
-            border: 1px solid #8A8A86;
+            background-color: var(--vf-raised);
+            color: var(--vf-fg);
+            border: 1px solid var(--vf-line);
             border-left-width: 4px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
             font-size: 0.875rem;
         }
         .toast-icon { font-weight: 700; line-height: 1.25rem; flex-shrink: 0; }
-        .toast-info { border-left-color: #5C5C58; }
-        .toast-info .toast-icon { color: #5C5C58; }
-        .toast-success { border-left-color: #0B6B4A; }
-        .toast-success .toast-icon { color: #0B6B4A; }
-        .toast-warning { border-left-color: #8A5F00; background-color: #FFF6DD; }
-        .toast-warning .toast-icon { color: #8A5F00; }
-        .toast-error { border-left-color: #A32A1F; background-color: #FDEDEB; }
-        .toast-error .toast-icon { color: #A32A1F; }
+        .toast-info { border-left-color: var(--vf-muted); }
+        .toast-info .toast-icon { color: var(--vf-muted); }
+        .toast-success { border-left-color: var(--vf-ok); }
+        .toast-success .toast-icon { color: var(--vf-ok); }
+        .toast-warning { border-left-color: var(--vf-amber); }
+        .toast-warning .toast-icon { color: var(--vf-amber); }
+        .toast-error { border-left-color: var(--vf-bad); }
+        .toast-error .toast-icon { color: var(--vf-bad); }
         .toast-action {
             font-weight: 600;
-            color: #8A5F00;
+            color: var(--vf-amber-text);
             text-decoration: underline;
             white-space: nowrap;
         }
         .toast-close {
-            color: #5C5C58;
+            color: var(--vf-muted);
             line-height: 1;
             font-size: 1.1rem;
             padding: 0 2px;
         }
-        .toast-close:hover { color: #1E1E1E; }
-        .toast-action:hover { color: #5C4000; }
+        .toast-close:hover { color: var(--vf-fg); }
+        .toast-action:hover { color: var(--vf-amber-hover); }
         .toast-action:focus-visible, .toast-close:focus-visible {
-            outline: 2px solid #1E1E1E;
+            outline: 2px solid var(--vf-amber);
             outline-offset: 2px;
             border-radius: 2px;
         }
 
         /* Typography */
-        @font-face {
-            font-family: 'Mirano Extended';
-            src: url('/static/fonts/MiranoExtendedFreebie-Light.ttf') format('truetype');
-            font-weight: 300;
-            font-style: normal;
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Mirano Extended';
-            src: url('/static/fonts/MiranoExtendedFreebie-LightItalic.ttf') format('truetype');
-            font-weight: 300;
-            font-style: italic;
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Mirano Extended';
-            src: url('/static/fonts/MiranoExtendedFreebie-Light.ttf') format('truetype');
-            font-weight: 400;
-            font-style: normal;
-            font-display: swap;
-        }
-
-        @font-face {
-            font-family: 'Mirano Extended';
-            src: url('/static/fonts/MiranoExtendedFreebie-Light.ttf') format('truetype');
-            font-weight: 600;
-            font-style: normal;
-            font-display: swap;
-        }
 
         body {
-            font-family: 'Mirano Extended', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: var(--vf-font-body);
+            color: var(--vf-fg);
+            background-color: var(--vf-page);
+            -webkit-font-smoothing: antialiased;
         }
+        /* body-qualified: Tailwind's preflight (injected after this sheet) resets heading weights */
+        body h1, body h2, body h3, body .font-display { font-family: var(--vf-font-display); font-weight: 700; letter-spacing: -0.005em; }
+        .font-mono, .tabular { font-family: var(--vf-font-mono); font-variant-numeric: tabular-nums; }
+        input, select, textarea { background-color: var(--vf-well); color: var(--vf-fg); }
+        input::placeholder { color: var(--vf-muted); opacity: 0.8; }
+        input[type="checkbox"], input[type="radio"] { accent-color: var(--vf-amber); }
+        input[type="range"] { accent-color: var(--vf-amber); background: transparent; }
+        :focus-visible { outline-color: var(--vf-amber); }
+        a { color: inherit; }
 
         /* Custom Color Palette */
         .btn-primary {
-            background-color: #E5A100;
-            color: white;
+            background-color: var(--vf-amber);
+            color: var(--vf-on-amber);
             font-weight: 600;
         }
 
         .btn-primary:hover {
-            background-color: #C48800;
+            background-color: var(--vf-amber-hover);
         }
 
         .btn-primary:disabled {
-            background-color: #8A8A86;
+            background-color: var(--vf-line);
             cursor: not-allowed;
             opacity: 0.5;
         }
 
         .btn-danger {
-            background-color: #D94032;
+            background-color: var(--vf-bad-solid);
             color: white;
         }
 
         .btn-danger:hover {
-            background-color: #B02A1E;
+            background-color: #B83A2E;
         }
 
         .text-primary {
-            color: #1E1E1E;
+            color: var(--vf-fg);
         }
 
         .text-secondary {
-            color: #3D3D3D;
+            color: var(--vf-fg-2);
         }
 
         .text-muted {
-            color: #8A8A86;
+            color: var(--vf-muted);
         }
 
         .bg-page {
-            background-color: #F0EFEB;
+            background-color: var(--vf-raised);
         }
 
         .bg-card {
-            background-color: #FAF9F6;
+            background-color: var(--vf-card);
         }
 
         .bg-header {
-            background-color: #121212;
+            background-color: var(--vf-well);
         }
 
         .border-primary {
-            border-color: #E5A100;
+            border-color: var(--vf-amber);
         }
 
         .focus-primary:focus {
             outline: none;
-            border-color: #E5A100;
+            border-color: var(--vf-amber);
             box-shadow: 0 0 0 3px rgba(229, 161, 0, 0.1);
         }
 
         /* File Upload Zone */
         .file-upload-zone {
-            border: 2px dashed #8A8A86;
+            border: 2px dashed var(--vf-line);
             transition: all 0.3s;
         }
 
         .file-upload-zone.dragging {
-            border-color: #E5A100;
+            border-color: var(--vf-amber);
             background-color: rgba(229, 161, 0, 0.05);
         }
 
         /* Waveform */
         .waveform-container {
-            background: #FAF9F6;
+            background: var(--vf-card);
             border-radius: 8px;
             padding: 16px;
         }
@@ -218,16 +229,16 @@
 
         .album-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
 
         .album-card.selected {
-            border: 3px solid #E5A100;
+            border: 3px solid var(--vf-amber);
         }
 
         /* Cards are keyboard-operable (tabindex + Enter/Space): show where focus is */
         .album-card:focus-visible {
-            outline: 3px solid #1E1E1E;
+            outline: 3px solid var(--vf-amber);
             outline-offset: 2px;
         }
 
@@ -238,12 +249,12 @@
         }
 
         .queue-item:hover {
-            background-color: #F0EFEB;
+            background-color: var(--vf-raised);
         }
 
         .queue-item.selected {
-            border-left: 4px solid #E5A100;
-            background-color: #FAF9F6;
+            border-left: 4px solid var(--vf-amber);
+            background-color: var(--vf-card);
         }
 
         /* Progress Bar */
@@ -252,7 +263,7 @@
         }
 
         .progress-bar-primary {
-            background-color: #E5A100;
+            background-color: var(--vf-amber);
         }
 
         /* Loading Spinner */
@@ -266,13 +277,86 @@
             width: 20px;
             height: 20px;
             border: 3px solid rgba(229, 161, 0, 0.3);
-            border-top-color: #E5A100;
+            border-top-color: var(--vf-amber);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
+
+        /* ---- Record flow, Library and player (flow.js) ---- */
+        .vf-topbar { background: var(--vf-well); border-bottom: 1px solid var(--vf-line); position: sticky; top: 0; z-index: 40; }
+        .vf-brand { font-family: var(--vf-font-logo); font-weight: 800; letter-spacing: 0.04em; font-size: 1.45rem; line-height: 1; color: var(--vf-fg); }
+        .vf-brand b { color: var(--vf-amber); font-weight: 600; }
+        .vf-tabs { display: flex; gap: 2px; background: var(--vf-raised); padding: 3px; border-radius: 9px; }
+        .vf-tab { font-family: var(--vf-font-mono); font-size: 0.78rem; padding: 6px 14px; border-radius: 7px; color: var(--vf-muted); letter-spacing: 0.04em; }
+        .vf-tab:hover { color: var(--vf-fg); }
+        .vf-tab[aria-selected="true"] { background: var(--vf-card); color: var(--vf-fg); box-shadow: 0 0 0 1px var(--vf-line); }
+        .vf-panel { background: var(--vf-card); border: 1px solid var(--vf-line); border-radius: 14px; }
+        .vf-deck { background: linear-gradient(180deg, #1D2125, #171A1D); border: 1px solid var(--vf-line); border-radius: 16px;
+                   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 24px 48px -28px rgba(0,0,0,0.8); }
+        .vf-label { font-family: var(--vf-font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--vf-muted); }
+        .vf-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 10px; padding: 12px 18px;
+                  font-weight: 600; font-size: 0.95rem; border: 1px solid var(--vf-line); background: var(--vf-raised); color: var(--vf-fg);
+                  transition: background-color .15s, border-color .15s, transform .05s; }
+        .vf-btn:hover:not(:disabled) { background: var(--vf-raised-2); }
+        .vf-btn:active:not(:disabled) { transform: translateY(1px); }
+        .vf-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .vf-btn-lg { padding: 16px 26px; font-size: 1.05rem; border-radius: 12px; }
+        .vf-btn-sm { padding: 6px 12px; font-size: 0.82rem; border-radius: 8px; }
+        .vf-btn-primary { background: var(--vf-amber); color: var(--vf-on-amber); border-color: transparent; }
+        .vf-btn-primary:hover:not(:disabled) { background: var(--vf-amber-hover); }
+        .vf-btn-rec { background: transparent; color: var(--vf-bad); border-color: rgba(255,107,94,0.5); }
+        .vf-btn-rec:hover:not(:disabled) { background: var(--vf-bad-soft); }
+        .vf-btn-ghost { background: transparent; border-color: transparent; color: var(--vf-fg-2); }
+        .vf-btn-ghost:hover:not(:disabled) { background: var(--vf-raised); color: var(--vf-fg); }
+        .vf-kbd { font-family: var(--vf-font-mono); font-size: 0.68rem; font-weight: 400; opacity: 0.75; border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; }
+        .vf-input { background: var(--vf-well); border: 1px solid var(--vf-line); border-radius: 10px; padding: 10px 14px; color: var(--vf-fg); width: 100%; }
+        .vf-input:focus { outline: none; border-color: var(--vf-amber); box-shadow: 0 0 0 3px var(--vf-amber-soft); }
+        .vf-timer { font-family: var(--vf-font-mono); font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+        .vf-leds { display: grid; grid-template-columns: repeat(30, 1fr); gap: 2px; height: 12px; }
+        .vf-leds i { background: #262B30; border-radius: 1px; }
+        .vf-leds i.g { background: var(--vf-ok); box-shadow: 0 0 6px rgba(61,220,132,0.35); }
+        .vf-leds i.y { background: var(--vf-amber); box-shadow: 0 0 6px rgba(240,179,35,0.35); }
+        .vf-leds i.r { background: var(--vf-bad); box-shadow: 0 0 6px rgba(255,107,94,0.45); }
+        .vf-side { font-family: var(--vf-font-mono); font-size: 0.75rem; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--vf-line); color: var(--vf-muted); display: inline-flex; gap: 6px; align-items: center; }
+        .vf-side.done { color: var(--vf-ok); border-color: rgba(61,220,132,0.4); }
+        .vf-side.live { color: var(--vf-bad); border-color: rgba(255,107,94,0.55); }
+        .vf-side.paused { color: var(--vf-amber); border-color: rgba(240,179,35,0.5); }
+        .vf-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+        .vf-side.live .vf-dot { animation: vf-pulse 1.2s ease-in-out infinite; }
+        @keyframes vf-pulse { 50% { opacity: 0.25; } }
+        @media (prefers-reduced-motion: reduce) { .vf-side.live .vf-dot { animation: none; } }
+        .vf-ruler { display: flex; gap: 2px; height: 30px; border-radius: 6px; overflow: hidden; }
+        .vf-ruler > div { position: relative; background: var(--vf-raised); min-width: 0; overflow: hidden; }
+        .vf-ruler > div > span.fill { position: absolute; inset: 0 auto 0 0; background: rgba(240,179,35,0.22); }
+        .vf-ruler > div > span.txt { position: relative; display: block; padding: 7px 7px; font-family: var(--vf-font-mono); font-size: 0.66rem; color: var(--vf-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .vf-ruler > div.now > span.txt { color: var(--vf-fg); }
+        .vf-sleeve { aspect-ratio: 1; width: 100%; border-radius: 10px; object-fit: cover; background:
+            radial-gradient(circle at 50% 50%, #0b0b0b 0 17%, var(--vf-amber) 17.5% 24%, #0b0b0b 24.5% 30%, #222 30.5% 31%, #0b0b0b 31.5% 44%, #222 44.5% 45%, #0b0b0b 45.5% 69%, transparent 69.5%),
+            linear-gradient(135deg, #2C3136, #15181B); }
+        .vf-cover { aspect-ratio: 1; width: 100%; border-radius: 8px; object-fit: cover; background: linear-gradient(135deg, #2C3136, #15181B); }
+        .vf-cover-fallback { aspect-ratio: 1; width: 100%; border-radius: 8px; display: grid; place-items: center; font-family: var(--vf-font-display);
+            font-size: 1.6rem; color: var(--vf-muted); background: radial-gradient(circle at 50% 50%, #0b0b0b 0 12%, #2C3136 12.5% 14%, #111 14.5% 60%, transparent 60.5%), linear-gradient(135deg, #2C3136, #15181B); }
+        .vf-album { text-align: left; border-radius: 10px; padding: 8px; transition: background-color .15s; }
+        .vf-album:hover { background: var(--vf-raised); }
+        .vf-album[aria-pressed="true"] { background: var(--vf-raised); box-shadow: 0 0 0 2px var(--vf-amber); }
+        .vf-track { display: grid; grid-template-columns: 34px 44px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; }
+        .vf-track:hover { background: var(--vf-raised); }
+        .vf-track.playing { background: var(--vf-amber-soft); color: var(--vf-amber-text); }
+        .vf-play { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--vf-raised-2); color: var(--vf-fg); font-size: 0.7rem; }
+        .vf-play:hover { background: var(--vf-amber); color: var(--vf-on-amber); }
+        .vf-ok { color: var(--vf-ok); } .vf-warn { color: var(--vf-amber); } .vf-bad { color: var(--vf-bad); }
+        .vf-seg { display: inline-flex; background: var(--vf-well); border: 1px solid var(--vf-line); border-radius: 10px; padding: 3px; gap: 2px; }
+        .vf-seg button { font-family: var(--vf-font-mono); font-size: 0.78rem; padding: 6px 12px; border-radius: 7px; color: var(--vf-muted); }
+        .vf-seg button[aria-pressed="true"] { background: var(--vf-raised-2); color: var(--vf-fg); }
+        .vf-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; background: rgba(12,14,16,0.96); backdrop-filter: blur(10px);
+                  border-top: 1px solid var(--vf-line); padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+        input[type="range"].vf-range { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: var(--vf-line); }
+        input[type="range"].vf-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--vf-fg); border: 0; }
+        .vf-progress { height: 6px; border-radius: 3px; background: var(--vf-raised); overflow: hidden; }
+        .vf-progress > div { height: 100%; background: var(--vf-amber); transition: width .3s ease; }
     </style>
 </head>
-<body class="bg-page">
+<body>
     <div x-data="vinylApp()" x-init="init()" class="min-h-screen">
         <!-- Toasts: stacked bottom-right; info/success auto-dismiss, warnings/errors stay.
              The icon and the hidden type word keep the type from relying on colour alone.
@@ -280,7 +364,7 @@
              its text is often not announced, and a role per toast would nest live regions (read
              twice).  No aria-relevant: x-for inserts the clone before x-text fills it, so the
              default "additions text" is needed.  The sr-only type word carries the urgency. -->
-        <div class="toast-stack" role="region" aria-label="Notifications" aria-live="polite">
+        <div class="toast-stack" role="region" aria-label="Notifications" aria-live="polite" :style="bar.queue.length ? 'bottom: 84px' : ''">
             <template x-for="toast in toasts" :key="toast.id">
                 <div class="toast" :class="'toast-' + toast.type"
                      @mouseenter="pauseToast(toast.id)" @mouseleave="resumeToast(toast.id)"
@@ -293,34 +377,425 @@
             </template>
         </div>
 
-        <!-- Header -->
-        <header class="bg-header shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center">
-                    <h1 class="text-3xl font-bold text-white">
-                    VinylFlow
-                    </h1>
-                    <button @click="showSettings = !showSettings" class="px-4 py-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white rounded-lg transition">
-                        ⚙️ Settings
+        <!-- Top bar: brand, the three views, Settings -->
+        <header class="vf-topbar">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+                <span class="vf-brand">FLIPSIDE<b>FLOW</b></span>
+                <nav class="vf-tabs" role="tablist" aria-label="Views">
+                    <button x-show="recordingEnabled" x-cloak role="tab" class="vf-tab" :aria-selected="view === 'record'" @click="setView('record')">
+                        <span x-show="recordingActive" x-cloak class="vf-bad">●</span> Record
                     </button>
-                </div>
+                    <button role="tab" class="vf-tab" :aria-selected="view === 'library'" @click="setView('library')">
+                        Library <span class="opacity-70" x-text="library.albums.length ? '· ' + library.albums.length : ''"></span>
+                    </button>
+                    <button role="tab" class="vf-tab" :aria-selected="view === 'workbench'" @click="setView('workbench')" title="Every file, the waveform editor and all the detection tools">Workbench</button>
+                </nav>
+                <button @click="showSettings = !showSettings" class="vf-btn vf-btn-sm vf-btn-ghost" aria-label="Settings">⚙ Settings</button>
             </div>
         </header>
 
-        <!-- Intro Section -->
-        <div class="bg-card border-b" style="border-color: #3D3D3D;">
-            <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 text-center">
-                <p class="text-secondary text-lg">
-                    Record. Split. Tag. Turn your vinyl into perfectly catalogued digital files in minutes.
-                </p>
+        <!-- ============================================================ RECORD -->
+        <main x-show="view === 'record'" x-cloak class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+            <!-- Step strip -->
+            <ol class="flex flex-wrap gap-2 vf-label" aria-label="Steps">
+                <template x-for="(s, i) in [['add','Add'],['record','Record'],['review','Export'],['done','Done']]" :key="s[0]">
+                    <li class="px-3 py-1 rounded-full border"
+                        :class="flow.step === s[0] ? 'vf-warn' : ''"
+                        :style="flow.step === s[0] ? 'border-color: var(--vf-amber)' : 'border-color: var(--vf-line)'"
+                        x-text="`${i + 1} · ${s[1]}`"></li>
+                </template>
+            </ol>
+
+            <!-- 1 · ADD -->
+            <section x-show="flow.step === 'add'" class="vf-panel p-6 sm:p-8 space-y-6">
+                <div class="space-y-2">
+                    <h2 class="text-3xl text-primary">What are you recording?</h2>
+                    <p class="text-secondary max-w-2xl">Type the artist and album. FlipsideFlow looks it up on Discogs, so it knows the sides, track names and lengths before the needle drops.</p>
+                </div>
+                <form class="flex gap-2" @submit.prevent="flowSearch()">
+                    <input id="flow-query" type="search" x-model="flow.query" class="vf-input text-lg" placeholder="e.g. Fleetwood Mac Rumours" aria-label="Artist and album" autocomplete="off">
+                    <button type="submit" class="vf-btn vf-btn-primary" :disabled="flow.searching || !flow.query.trim()">
+                        <span x-show="!flow.searching">Search</span><span x-show="flow.searching" class="flex items-center gap-2"><span class="spinner" style="width:16px;height:16px"></span>Searching</span>
+                    </button>
+                </form>
+                <p x-show="flow.notice" x-cloak class="text-sm text-secondary" x-text="flow.notice"></p>
+                <p x-show="!discogsConfigured" x-cloak class="text-sm text-secondary">Discogs is not connected yet.
+                    <button type="button" class="underline vf-warn" @click="showSettings = true">Add your Discogs token</button> to look records up.</p>
+
+                <div x-show="flow.results.length" x-cloak class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <template x-for="result in flow.results" :key="result.id">
+                        <button type="button" class="vf-album" @click="flowPick(result)" :disabled="!!flow.loadingId" :aria-label="`Record ${result.artist} — ${result.title}`">
+                            <div class="relative">
+                                <img x-show="result.cover_url" :src="result.cover_url || ''" alt="" class="vf-cover" referrerpolicy="no-referrer" onerror="this.style.display='none'">
+                                <div x-show="!result.cover_url" class="vf-cover-fallback" x-text="initials(result.title)"></div>
+                                <div x-show="flow.loadingId === result.id" class="absolute inset-0 grid place-items-center rounded-lg" style="background: rgba(0,0,0,0.55)"><span class="spinner"></span></div>
+                            </div>
+                            <p class="mt-2 text-sm text-primary font-semibold truncate" x-text="result.title"></p>
+                            <p class="text-xs text-secondary truncate" x-text="result.artist"></p>
+                            <p class="text-xs text-muted font-mono" x-text="[result.year, result.format, result.country].filter(Boolean).join(' · ')"></p>
+                        </button>
+                    </template>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3 pt-2 border-t" style="border-color: var(--vf-line)">
+                    <button type="button" class="vf-btn vf-btn-ghost mt-4" @click="flowSkipLookup()">Record without looking it up →</button>
+                    <span class="text-xs text-muted mt-4">You can name it after recording.</span>
+                </div>
+            </section>
+
+            <!-- 2 · RECORD -->
+            <section x-show="flow.step === 'record'" x-cloak class="vf-deck p-5 sm:p-7">
+                <div class="grid gap-7 md:grid-cols-[220px_1fr]">
+                    <div class="space-y-3">
+                        <img x-show="flow.release?.cover_url" :src="flow.release?.cover_url || ''" alt="" class="vf-cover" referrerpolicy="no-referrer">
+                        <div x-show="!flow.release?.cover_url" class="vf-sleeve" aria-hidden="true"></div>
+                        <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost w-full" @click="flowBackToAdd()" x-show="!recordingActive">← Pick another record</button>
+                    </div>
+                    <div class="space-y-5 min-w-0">
+                        <div>
+                            <h2 class="text-2xl text-primary" x-text="flowTitle"></h2>
+                            <p class="text-sm text-secondary" x-show="flow.release" x-text="flow.release ? [flow.release.year, flow.release.label, `${flowSides.length} side${flowSides.length === 1 ? '' : 's'}`, `${flow.release.tracks.length} tracks`].filter(Boolean).join(' · ') : ''"></p>
+                            <label x-show="!flow.release && !recordingActive" class="block mt-2 max-w-md">
+                                <span class="vf-label">Name (optional)</span>
+                                <input type="text" x-model="recordingTitle" :disabled="recordingActive" maxlength="120" placeholder="Artist — Album" class="vf-input mt-1">
+                            </label>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <span class="vf-label">Input</span>
+                            <span class="font-mono text-secondary" x-text="flowInputLabel"></span>
+                            <button type="button" x-show="!recordingActive" class="underline text-muted hover:text-primary" @click="flowChangeInput()">Change</button>
+                        </div>
+
+                        <!-- Input picker (set once; remembered) -->
+                        <div x-show="flow.showInput" x-cloak class="vf-panel p-4 space-y-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                <label class="sm:col-span-2 text-xs text-secondary">Audio input
+                                    <select x-model.number="recordingInput.device" @change="recordingDeviceChanged()" :disabled="recordingInputLocked" class="vf-input mt-1">
+                                        <option value="" disabled>Select an input</option>
+                                        <template x-for="device in recordingDevices" :key="device.id">
+                                            <option :value="device.id" :selected="device.id === recordingInput.device" x-text="`${device.name} (${device.channels} inputs)`"></option>
+                                        </template>
+                                    </select>
+                                </label>
+                                <label class="text-xs text-secondary">Left / right
+                                    <div class="flex gap-1 mt-1">
+                                        <select x-model.number="recordingInput.left" :disabled="recordingInputLocked" class="vf-input" aria-label="Left channel">
+                                            <template x-for="c in recordingChannels" :key="c"><option :value="c" :selected="c === recordingInput.left" x-text="c"></option></template>
+                                        </select>
+                                        <select x-model.number="recordingInput.right" :disabled="recordingInputLocked" class="vf-input" aria-label="Right channel">
+                                            <template x-for="c in recordingChannels" :key="c"><option :value="c" :selected="c === recordingInput.right" x-text="c"></option></template>
+                                        </select>
+                                    </div>
+                                </label>
+                                <label class="text-xs text-secondary">Sample rate
+                                    <select x-model.number="recordingInput.rate" :disabled="recordingInputLocked" class="vf-input mt-1">
+                                        <option :value="44100" :selected="recordingInput.rate === 44100">44.1 kHz</option>
+                                        <option :value="48000" :selected="recordingInput.rate === 48000">48 kHz</option>
+                                        <option :value="96000" :selected="recordingInput.rate === 96000">96 kHz</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" @click="flowApplyInput()" :disabled="recordingBusy || recordingInput.device === ''">Use this input</button>
+                                <button type="button" class="vf-btn vf-btn-sm" @click="refreshRecordingDevices()" :disabled="recordingInputLocked">↻ Refresh</button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <template x-for="chip in flowSideChips" :key="chip.label">
+                                <span class="vf-side" :class="chip.state">
+                                    <span x-show="chip.state === 'live'" class="vf-dot"></span>
+                                    <span x-show="chip.state === 'done'">✓</span>
+                                    <span x-text="`Side ${chip.label}`"></span>
+                                    <span x-show="chip.seconds" class="opacity-70" x-text="formatDuration(chip.seconds)"></span>
+                                </span>
+                            </template>
+                        </div>
+
+                        <div class="flex flex-wrap items-end gap-x-6 gap-y-2">
+                            <div class="vf-timer text-6xl text-primary" x-text="formatDuration(recordingActive ? (recorder.side_seconds || 0) : 0)" aria-label="Time on this side"></div>
+                            <div class="text-sm text-muted font-mono pb-1">
+                                <span x-show="flowExpectedSide?.totalSeconds" x-text="`of ~${formatDuration(flowExpectedSide?.totalSeconds)} · side ${recorder.side || 'A'}`"></span>
+                                <span x-show="recordingActive" x-text="` · total ${formatDuration(recorder.seconds || 0)}`"></span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5" aria-label="Input levels">
+                            <template x-for="(label, channel) in ['L', 'R']" :key="label">
+                                <div class="grid items-center gap-2 text-xs font-mono text-muted" style="grid-template-columns: 14px 1fr 64px;">
+                                    <span x-text="label"></span>
+                                    <div class="vf-leds" role="meter" :aria-label="`${label} level`" aria-valuemin="-60" aria-valuemax="0" :aria-valuenow="Math.max(-60, recorder.levels[channel])">
+                                        <template x-for="(seg, i) in ledSegments(recorder.levels[channel])" :key="i"><i :class="seg"></i></template>
+                                    </div>
+                                    <span class="text-right" x-text="recorder.levels[channel] <= -100 ? '−∞ dB' : `${recorder.levels[channel]} dB`"></span>
+                                </div>
+                            </template>
+                            <p x-show="recorder.clipping.some(Boolean)" x-cloak class="text-xs vf-bad">Too loud: the signal clipped. Turn the gain down a little on the audio interface.</p>
+                            <p x-show="recorder.state === 'monitoring'" class="text-xs text-muted">Play a loud part of the record: the meters should reach the amber, never the red.</p>
+                        </div>
+
+                        <div x-show="flowRuler.length" x-cloak class="space-y-1.5">
+                            <div class="vf-ruler">
+                                <template x-for="t in flowRuler" :key="t.position">
+                                    <div :class="{ now: t.now }" :style="`flex: ${t.length}`" :title="`${t.position} ${t.title}`">
+                                        <span class="fill" :style="`width: ${t.fill * 100}%`"></span>
+                                        <span class="txt" x-text="`${t.position} ${t.title}`"></span>
+                                    </div>
+                                </template>
+                            </div>
+                            <p class="text-xs text-muted" x-show="flowNowPlaying && recorder.state === 'recording'" x-text="flowNowPlaying ? `Probably playing ${flowNowPlaying.position} ${flowNowPlaying.title}` : ''"></p>
+                        </div>
+
+                        <!-- Paused at a flip -->
+                        <div x-show="recorder.state === 'paused'" x-cloak class="rounded-xl p-4 border" style="border-color: rgba(240,179,35,0.45); background: var(--vf-amber-soft);">
+                            <p class="text-lg text-primary font-semibold" x-text="`Flip to side ${recorder.side || 'B'}`"></p>
+                            <p class="text-sm text-secondary" x-text="recorder.auto_waiting ? 'Drop the needle when you are ready. Recording starts again by itself; the first seconds are kept.' : 'Paused. Press Resume when the needle is down.'"></p>
+                        </div>
+                        <p x-show="recorder.auto_message && recorder.state === 'recording'" x-cloak class="text-sm vf-ok" x-text="recorder.auto_message"></p>
+
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button type="button" x-show="!recordingActive" class="vf-btn vf-btn-lg vf-btn-rec" @click="flowStart()" :disabled="recordingBusy || recordingInput.device === ''">
+                                <span class="vf-dot"></span> Start recording <span class="vf-kbd">Space</span>
+                            </button>
+                            <button type="button" x-show="recorder.state === 'recording'" x-cloak class="vf-btn vf-btn-lg vf-btn-primary" @click="flowFlip()" :disabled="recordingBusy">
+                                ⏸ Flip side <span class="vf-kbd">Space</span>
+                            </button>
+                            <button type="button" x-show="recorder.state === 'paused'" x-cloak class="vf-btn vf-btn-lg vf-btn-primary" @click="flowResume()" :disabled="recordingBusy">
+                                ▶ Resume now <span class="vf-kbd">Space</span>
+                            </button>
+                            <button type="button" x-show="recordingActive" x-cloak class="vf-btn vf-btn-lg" @click="flowFinish()" :disabled="recordingBusy">■ Finish record</button>
+                            <span x-show="recordingBusy" class="text-xs text-muted" role="status">Working…</span>
+                        </div>
+                        <label class="flex items-center gap-2 text-sm text-secondary">
+                            <input type="checkbox" x-model="flow.autoFlip" :disabled="recordingActive">
+                            Pause by itself at the end of each side, and carry on when the needle drops
+                        </label>
+                        <p x-show="recordingError" x-cloak role="alert" class="text-sm rounded-lg p-3 vf-bad" style="background: var(--vf-bad-soft)" x-text="recordingError"></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3 · REVIEW & EXPORT -->
+            <section x-show="flow.step === 'review'" x-cloak class="vf-panel p-5 sm:p-7 space-y-6">
+                <div class="flex flex-wrap items-start gap-5">
+                    <div class="w-28 shrink-0">
+                        <img x-show="selectedRelease?.cover_url" :src="selectedRelease?.cover_url || ''" alt="" class="vf-cover" referrerpolicy="no-referrer">
+                        <div x-show="!selectedRelease?.cover_url" class="vf-sleeve"></div>
+                    </div>
+                    <div class="flex-1 min-w-0 space-y-1">
+                        <span class="vf-label" x-text="selectedRelease ? 'Ready to export' : 'Recorded'"></span>
+                        <h2 class="text-2xl text-primary" x-text="selectedRelease && !isManualRelease ? `${selectedRelease.artist} — ${selectedRelease.title}` : (isManualRelease ? 'Name this record' : 'Which record is this?')"></h2>
+                        <p class="text-sm text-secondary" x-text="currentFile ? `${formatDuration(currentFile.duration)} recorded · ${(currentFile.recording_side_markers || []).length + 1} side(s)` : ''"></p>
+                        <div class="flex flex-wrap gap-2 pt-2">
+                            <button type="button" x-show="selectedRelease" class="vf-btn vf-btn-sm" @click="changeRelease()" :disabled="analyzing || isProcessing" x-text="isManualRelease ? 'Look it up on Discogs' : 'Change album'"></button>
+                            <button type="button" class="vf-btn vf-btn-sm" @click="flowFixSplits()" :disabled="!detectedTracks.length || isProcessing">Fix splits…</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- No album yet: search, or type the names -->
+                <div x-show="!selectedRelease" class="space-y-4">
+                    <form class="flex gap-2" @submit.prevent="flowSearch()">
+                        <input type="search" x-model="flow.query" class="vf-input" placeholder="Artist and album" aria-label="Search Discogs">
+                        <button type="submit" class="vf-btn vf-btn-primary" :disabled="flow.searching || !flow.query.trim()">Search</button>
+                    </form>
+                    <p x-show="flow.notice" x-cloak class="text-sm text-secondary" x-text="flow.notice"></p>
+                    <p x-show="songRecognition.song && songRecognition.recording_id === flow.fileId" x-cloak class="text-sm text-secondary"
+                       x-text="songRecognition.song ? `Heard: ${songRecognition.song.artist} — ${songRecognition.song.title}` : ''"></p>
+                    <div x-show="flow.results.length" x-cloak class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                        <template x-for="result in flow.results" :key="result.id">
+                            <button type="button" class="vf-album" @click="flowPickForFile(result)" :disabled="!!flow.loadingId || analyzing">
+                                <div class="relative">
+                                    <img x-show="result.cover_url" :src="result.cover_url || ''" alt="" class="vf-cover" referrerpolicy="no-referrer" onerror="this.style.display='none'">
+                                    <div x-show="!result.cover_url" class="vf-cover-fallback" x-text="initials(result.title)"></div>
+                                    <div x-show="flow.loadingId === result.id" class="absolute inset-0 grid place-items-center rounded-lg" style="background: rgba(0,0,0,0.55)"><span class="spinner"></span></div>
+                                </div>
+                                <p class="mt-2 text-sm text-primary font-semibold truncate" x-text="result.title"></p>
+                                <p class="text-xs text-secondary truncate" x-text="result.artist"></p>
+                                <p class="text-xs text-muted font-mono" x-text="[result.year, result.format].filter(Boolean).join(' · ')"></p>
+                            </button>
+                        </template>
+                    </div>
+                    <button type="button" class="vf-btn" @click="nameItMyself()" :disabled="analyzing">✎ Name it myself</button>
+                </div>
+
+                <!-- Typed names -->
+                <div x-show="isManualRelease" x-cloak class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                    <template x-if="isManualRelease">
+                        <label class="sm:col-span-2 text-xs text-secondary">Artist <input type="text" x-model="selectedRelease.artist" maxlength="300" class="vf-input mt-1" placeholder="Artist"></label>
+                    </template>
+                    <template x-if="isManualRelease">
+                        <label class="sm:col-span-2 text-xs text-secondary">Album <input type="text" x-model="selectedRelease.title" maxlength="300" class="vf-input mt-1" placeholder="Album"></label>
+                    </template>
+                    <template x-if="isManualRelease">
+                        <label class="text-xs text-secondary">Year <input type="text" inputmode="numeric" maxlength="4" x-model="selectedRelease.year" class="vf-input mt-1" placeholder="1977"></label>
+                    </template>
+                </div>
+
+                <!-- Status -->
+                <div x-show="analyzing" x-cloak class="flex items-center gap-3 text-secondary" role="status"><span class="spinner"></span> Finding the tracks…</div>
+                <div x-show="!analyzing && detectedTracks.length" x-cloak class="flex flex-wrap items-center gap-3 text-sm">
+                    <span x-show="flowChecksOk && !isManualRelease" class="vf-ok" x-text="`✓ All ${activeTrackCount} tracks match the Discogs lengths.`"></span>
+                    <span x-show="!flowChecksOk && !isManualRelease && selectedRelease" class="vf-warn">Some splits don't match the Discogs lengths. Listen to the marked tracks, or use Fix splits.</span>
+                    <span x-show="isManualRelease" class="text-secondary" x-text="`${activeTrackCount} tracks found by the gaps between songs. Type their names, or leave them as Track 1, 2…`"></span>
+                </div>
+                <div x-show="!analyzing && selectedRelease && !detectedTracks.length" x-cloak class="flex items-center gap-3">
+                    <span class="text-secondary">No tracks placed yet.</span>
+                    <button type="button" class="vf-btn vf-btn-sm" @click="redetectForTargets()">Try again</button>
+                </div>
+
+                <!-- Tracks -->
+                <div x-show="detectedTracks.length && selectedRelease" x-cloak class="space-y-1">
+                    <template x-for="row in flowTracks" :key="row.idx">
+                        <div class="vf-track" :class="{ playing: isBarTrack(`rev-${row.idx}`) && bar.playing, 'opacity-40': row.track.ignored }">
+                            <button type="button" class="vf-play" @click="isBarTrack(`rev-${row.idx}`) ? toggleBar() : playReviewTrack(row)" :disabled="row.track.ignored"
+                                    :aria-label="`Play ${row.title}`" x-text="isBarTrack(`rev-${row.idx}`) && bar.playing ? '❚❚' : '▶'"></button>
+                            <span class="font-mono text-xs text-muted" x-text="row.position"></span>
+                            <template x-if="isManualRelease">
+                                <input type="text" x-model="selectedRelease.tracks[row.idx].title" :placeholder="`Track ${row.idx + 1}`" maxlength="300" class="vf-input py-1.5" :aria-label="`Name of track ${row.idx + 1}`">
+                            </template>
+                            <span x-show="!isManualRelease" class="truncate text-primary" x-text="row.title"></span>
+                            <span class="font-mono text-xs text-secondary" x-text="formatDuration(row.track.duration)"></span>
+                            <span class="text-xs w-16 text-right" :class="row.check === 'ok' ? 'vf-ok' : row.check === 'check' ? 'vf-warn' : 'text-muted'"
+                                  :title="row.expected ? `Discogs: ${formatDuration(row.expected)}` : ''"
+                                  x-text="row.check === 'ok' ? '✓' : row.check === 'check' ? `listen (${formatDuration(row.expected)})` : ''"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Format + export -->
+                <div x-show="detectedTracks.length && selectedRelease" x-cloak class="flex flex-wrap items-center gap-4 pt-4 border-t" style="border-color: var(--vf-line)">
+                    <div class="vf-seg" role="group" aria-label="File format">
+                        <template x-for="fmt in availableFormats" :key="fmt.id">
+                            <button type="button" :aria-pressed="outputFormat === fmt.id" @click="outputFormat = fmt.id" x-text="fmt.id.toUpperCase()" :title="fmt.label"></button>
+                        </template>
+                    </div>
+                    <label class="flex items-center gap-2 text-sm text-secondary">
+                        <input type="checkbox" :checked="restorationLevel === 1" @change="restorationLevel = $event.target.checked ? 1 : 0">
+                        Clean up clicks and rumble
+                    </label>
+                    <div class="flex-1"></div>
+                    <button type="button" class="vf-btn vf-btn-lg vf-btn-primary" @click="flowExport()" :disabled="isProcessing || analyzing || !activeTrackCount">
+                        <span x-show="!isProcessing" x-text="`Export ${activeTrackCount} tracks`"></span>
+                        <span x-show="isProcessing" class="flex items-center gap-2"><span class="spinner" style="width:16px;height:16px;border-color: rgba(0,0,0,.2); border-top-color: var(--vf-on-amber)"></span>Exporting…</span>
+                    </button>
+                </div>
+                <div x-show="isProcessing" x-cloak class="space-y-1">
+                    <div class="vf-progress"><div :style="`width: ${Math.round(processingProgress * 100)}%`"></div></div>
+                    <p class="text-xs text-muted" x-text="processingMessage"></p>
+                </div>
+            </section>
+
+            <!-- 4 · DONE -->
+            <section x-show="flow.step === 'done'" x-cloak class="vf-panel p-6 sm:p-8">
+                <div class="flex flex-wrap items-center gap-6">
+                    <div class="w-32 shrink-0">
+                        <img x-show="selectedRelease?.cover_url" :src="selectedRelease?.cover_url || ''" alt="" class="vf-cover" referrerpolicy="no-referrer">
+                        <div x-show="!selectedRelease?.cover_url" class="vf-sleeve"></div>
+                    </div>
+                    <div class="flex-1 min-w-0 space-y-2">
+                        <span class="vf-label vf-ok">✓ Saved to your library</span>
+                        <h2 class="text-2xl text-primary" x-text="selectedRelease ? `${selectedRelease.artist} — ${selectedRelease.title}` : 'Exported'"></h2>
+                        <p class="text-xs font-mono text-muted break-all" x-text="flow.donePath"></p>
+                        <div class="flex flex-wrap gap-2 pt-2">
+                            <button type="button" class="vf-btn vf-btn-primary" @click="flowRecordNext()">● Record the next one</button>
+                            <button type="button" class="vf-btn" @click="flowOpenInLibrary()">Open in Library</button>
+                            <button type="button" class="vf-btn" x-show="flow.doneAlbumId" @click="revealInFinder(flow.doneAlbumId)">Show in Finder</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============================================================ LIBRARY -->
+        <main x-show="view === 'library'" x-cloak class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+            <div class="flex flex-wrap items-end gap-4">
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-3xl text-primary">Library</h2>
+                    <p class="text-sm text-muted font-mono" x-text="`${library.albums.length} album${library.albums.length === 1 ? '' : 's'} · ${libraryTrackCount} track${libraryTrackCount === 1 ? '' : 's'}`"></p>
+                </div>
+                <input type="search" x-model="library.filter" class="vf-input" style="max-width: 18rem" placeholder="Filter albums and tracks" aria-label="Filter the library">
+                <button type="button" class="vf-btn vf-btn-sm" @click="loadLibrary()" :disabled="library.loading">↻ Refresh</button>
             </div>
-        </div>
+
+            <div x-show="unfinishedRecordings.length" x-cloak class="vf-panel p-4 space-y-3">
+                <p class="vf-label vf-warn">Recorded, not exported yet</p>
+                <div class="flex gap-3 overflow-x-auto pb-1">
+                    <template x-for="item in unfinishedRecordings" :key="item.id">
+                        <div class="shrink-0 w-60 rounded-lg p-3 flex items-center gap-3" style="background: var(--vf-raised)">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-primary truncate" :title="item.title" x-text="item.title"></p>
+                                <p class="text-xs text-muted font-mono" x-text="`${formatDuration(item.seconds)}${item.state !== 'finished' ? ' · interrupted' : ''}`"></p>
+                            </div>
+                            <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" @click="continueRecording(item)" :disabled="recordingActive || recordingBusy">Continue</button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <p x-show="library.error && !library.albums.length" x-cloak class="text-secondary" x-text="library.error"></p>
+            <div x-show="library.loaded && !library.albums.length && !library.error" x-cloak class="vf-panel p-10 text-center space-y-3">
+                <p class="text-xl text-primary">Nothing here yet</p>
+                <p class="text-secondary">Every record you export lands here, ready to play.</p>
+                <button type="button" x-show="recordingEnabled" class="vf-btn vf-btn-primary" @click="setView('record')">● Record a record</button>
+            </div>
+
+            <div class="grid gap-6" :class="libraryAlbum ? 'lg:grid-cols-[minmax(0,1fr)_420px]' : ''">
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 content-start" :class="libraryAlbum ? 'lg:grid-cols-3' : 'lg:grid-cols-6'">
+                    <template x-for="album in libraryAlbums" :key="album.id">
+                        <button type="button" class="vf-album" :aria-pressed="library.selectedId === album.id" @click="selectAlbum(album)" @dblclick="playAlbum(album)">
+                            <img x-show="album.has_cover" :src="coverUrl(album)" alt="" class="vf-cover" loading="lazy">
+                            <div x-show="!album.has_cover" class="vf-cover-fallback" x-text="initials(album.title)"></div>
+                            <p class="mt-2 text-sm text-primary font-semibold truncate" x-text="album.title"></p>
+                            <p class="text-xs text-secondary truncate" x-text="album.artist"></p>
+                        </button>
+                    </template>
+                </div>
+
+                <aside x-show="libraryAlbum" x-cloak class="vf-panel p-5 space-y-4 self-start lg:sticky" style="top: 76px">
+                    <template x-if="libraryAlbum">
+                        <div class="space-y-4">
+                            <div class="flex gap-4">
+                                <div class="w-28 shrink-0">
+                                    <img x-show="libraryAlbum.has_cover" :src="coverUrl(libraryAlbum)" alt="" class="vf-cover">
+                                    <div x-show="!libraryAlbum.has_cover" class="vf-cover-fallback" x-text="initials(libraryAlbum.title)"></div>
+                                </div>
+                                <div class="min-w-0 space-y-1">
+                                    <h3 class="text-lg text-primary" x-text="libraryAlbum.title"></h3>
+                                    <p class="text-sm text-secondary" x-text="libraryAlbum.artist"></p>
+                                    <p class="text-xs text-muted font-mono" x-text="[libraryAlbum.year, libraryAlbum.formats.join('/').toUpperCase(), `${libraryAlbum.tracks.length} tracks`, formatDuration(libraryAlbum.duration)].filter(Boolean).join(' · ')"></p>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" @click="playAlbum(libraryAlbum)">▶ Play</button>
+                                <button type="button" class="vf-btn vf-btn-sm" @click="revealInFinder(libraryAlbum.id)">Show in Finder</button>
+                                <button type="button" class="vf-btn vf-btn-sm" x-show="(libraryAlbum.sources || []).some(s => s.available)" @click="resplitAlbum(libraryAlbum)" title="Open the original recording to split it again">Re-split</button>
+                                <a x-show="libraryAlbum.release_id" :href="`https://www.discogs.com/release/${libraryAlbum.release_id}`" target="_blank" rel="noopener noreferrer" class="vf-btn vf-btn-sm vf-btn-ghost">Discogs ↗</a>
+                            </div>
+                            <div class="space-y-0.5 max-h-[55vh] overflow-y-auto -mx-2">
+                                <template x-for="(t, i) in libraryAlbum.tracks" :key="t.id">
+                                    <div class="vf-track cursor-pointer" style="grid-template-columns: 34px 40px 1fr auto;" :class="{ playing: isBarTrack(t.id) }" @click="isBarTrack(t.id) ? toggleBar() : playAlbum(libraryAlbum, i)">
+                                        <span class="vf-play" x-text="isBarTrack(t.id) && bar.playing ? '❚❚' : '▶'"></span>
+                                        <span class="font-mono text-xs text-muted" x-text="t.position || t.track || i + 1"></span>
+                                        <span class="truncate" x-text="t.title"></span>
+                                        <span class="font-mono text-xs text-muted" x-text="formatDuration(t.duration)"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </aside>
+            </div>
+            <p x-show="library.root" class="text-xs text-muted font-mono break-all" x-text="`Folder: ${library.root}`"></p>
+        </main>
 
         <!-- Setup Modal (First-Run) -->
         <div x-show="setupRequired" x-cloak class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
             <div class="bg-card rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
                 <div class="text-center mb-6">
-                    <h2 class="text-3xl font-bold text-primary mb-2">Welcome to VinylFlow</h2>
+                    <h2 class="text-3xl font-bold text-primary mb-2">Welcome to FlipsideFlow</h2>
                     <p class="text-secondary">Let's get you set up in seconds</p>
                 </div>
 
@@ -335,12 +810,12 @@
                             x-model="setupToken"
                             placeholder="Paste your token here"
                             class="w-full px-4 py-3 border focus-primary rounded-lg text-sm"
-                            style="border-color: #8A8A86;"
+                            style="border-color: var(--vf-line);"
                             :disabled="setupLoading"
                             @keyup.enter="submitSetup()"
                         >
                         <p class="text-xs text-muted mt-1">
-                            VinylFlow needs this free token to search album metadata.
+                            FlipsideFlow needs this free token to search album metadata.
                         </p>
                     </div>
 
@@ -355,7 +830,7 @@
                             <strong>Don't have a token yet?</strong>
                         </p>
                         <ol class="text-sm text-secondary space-y-1 list-decimal list-inside">
-                            <li>Go to <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer" class="font-semibold hover:underline" style="color: #E5A100;">Discogs Settings</a></li>
+                            <li>Go to <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer" class="font-semibold hover:underline" style="color: var(--vf-amber);">Discogs Settings</a></li>
                             <li>Click "Generate new token"</li>
                             <li>Copy and paste it above</li>
                         </ol>
@@ -389,8 +864,8 @@
         </div>
 
         <!-- Discogs Not Configured Warning (for users who skip setup) -->
-        <div x-show="!discogsConfigured && !setupRequired" x-cloak class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-            <div class="p-4 rounded-lg border-2 flex items-center gap-3" style="background-color: rgba(217, 64, 50, 0.1); border-color: #D94032;">
+        <div x-show="view === 'workbench' && !discogsConfigured && !setupRequired" x-cloak class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+            <div class="p-4 rounded-lg border-2 flex items-center gap-3" style="background-color: rgba(217, 64, 50, 0.1); border-color: var(--vf-bad);">
                 <span class="text-2xl">⚠️</span>
                 <div>
                     <p class="font-semibold text-primary">Discogs API not configured</p>
@@ -407,32 +882,15 @@
                 <h2 class="text-2xl font-bold text-primary mb-4">Settings</h2>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-secondary mb-1">Silence Threshold (dB)</label>
-                        <input type="number" x-model="config.silence_threshold" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-secondary mb-1">Min Silence Duration (sec)</label>
-                        <input type="number" step="0.1" x-model="config.min_silence_duration" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-secondary mb-1">Output Folder</label>
+                        <label class="block text-sm font-medium text-secondary mb-1">Library folder</label>
                         <div class="flex gap-2">
-                            <input type="text" x-model="config.output_dir" class="flex-1 px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;" placeholder="/Users/you/Music/VinylFlow">
-                            <button @click="chooseOutputFolder()" type="button" class="px-3 py-2 rounded-md text-primary hover:bg-page" style="background-color: #F0EFEB;">Browse</button>
+                            <input type="text" x-model="config.output_dir" class="flex-1 px-3 py-2 border focus-primary rounded-md" style="border-color: var(--vf-line);" placeholder="/Users/you/Music/FlipsideFlow">
+                            <button @click="chooseOutputFolder()" type="button" class="px-3 py-2 rounded-md text-primary hover:bg-page" style="background-color: var(--vf-raised);">Browse</button>
                         </div>
+                        <p class="text-xs text-muted mt-1">Exported albums go here, and the Library shows everything in it.</p>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-secondary mb-1">Track Numbering</label>
-                        <select x-model="config.track_numbering" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;">
-                            <option value="vinyl">Vinyl position — TRACKNUMBER as A1, B1…</option>
-                            <option value="sequential_disc_per_lp">Sequential per LP — A+B=disc 1, C+D=disc 2…</option>
-                        </select>
-                        <p class="text-xs mt-1" style="color: #8A8A86;" x-show="config.track_numbering === 'vinyl'">Raw vinyl position written as TRACKNUMBER (e.g. A1, B1); no track or disc totals.</p>
-                        <p class="text-xs mt-1" style="color: #8A8A86;" x-show="config.track_numbering === 'sequential_disc_per_lp'">DISCNUMBER per physical record, TRACKNUMBER sequential across both sides (with track and disc totals) + VINYLPOSITION tag. Single LPs appear as 1 disc. Correct sort order in Jellyfin, Roon, Plex.</p>
-                    </div>
-
                     <!-- Discogs Token Section -->
-                    <div class="border-t pt-4 mt-4" style="border-color: #8A8A86;">
+                    <div class="border-t pt-4 mt-4" style="border-color: var(--vf-line);">
                         <h3 class="text-lg font-semibold text-primary mb-3">Discogs API</h3>
                         <div class="space-y-3">
                             <div>
@@ -443,7 +901,7 @@
                                         x-model="setupToken"
                                         :placeholder="discogsConfigured ? '••••••••••••••••' : 'Paste token'"
                                         class="flex-1 px-3 py-2 border focus-primary rounded-md text-sm"
-                                        style="border-color: #8A8A86;"
+                                        style="border-color: var(--vf-line);"
                                     >
                                     <button
                                         @click="submitSetup(); showSettings = false"
@@ -454,15 +912,39 @@
                                     </button>
                                 </div>
                             </div>
-                            <div x-show="discogsConfigured" class="text-xs" style="color: #10B981;">
+                            <div x-show="discogsConfigured" class="text-xs" style="color: var(--vf-ok);">
                                 ✓ Connected to Discogs
                             </div>
                         </div>
                     </div>
 
+                    <details class="border-t pt-4" style="border-color: var(--vf-line);">
+                        <summary class="cursor-pointer text-sm font-semibold text-secondary">Advanced</summary>
+                        <div class="space-y-4 mt-3">
+                    <div>
+                        <label class="block text-sm font-medium text-secondary mb-1">Silence Threshold (dB)</label>
+                        <input type="number" x-model="config.silence_threshold" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: var(--vf-line);">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-secondary mb-1">Min Silence Duration (sec)</label>
+                        <input type="number" step="0.1" x-model="config.min_silence_duration" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: var(--vf-line);">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-secondary mb-1">Track Numbering</label>
+                        <select x-model="config.track_numbering" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: var(--vf-line);">
+                            <option value="vinyl">Vinyl position — TRACKNUMBER as A1, B1…</option>
+                            <option value="sequential_disc_per_lp">Sequential per LP — A+B=disc 1, C+D=disc 2…</option>
+                        </select>
+                        <p class="text-xs mt-1" style="color: var(--vf-muted);" x-show="config.track_numbering === 'vinyl'">Raw vinyl position written as TRACKNUMBER (e.g. A1, B1); no track or disc totals.</p>
+                        <p class="text-xs mt-1" style="color: var(--vf-muted);" x-show="config.track_numbering === 'sequential_disc_per_lp'">DISCNUMBER per physical record, TRACKNUMBER sequential across both sides (with track and disc totals) + VINYLPOSITION tag. Single LPs appear as 1 disc. Correct sort order in Jellyfin, Roon, Plex.</p>
+                    </div>
+
+                        </div>
+                    </details>
+
                     <div class="flex gap-2">
                         <button @click="saveConfig()" class="flex-1 px-4 py-2 btn-primary rounded-lg">Save</button>
-                        <button @click="showSettings = false" class="flex-1 px-4 py-2 text-primary rounded-lg hover:bg-page" style="background-color: #F0EFEB;">Cancel</button>
+                        <button @click="showSettings = false" class="flex-1 px-4 py-2 text-primary rounded-lg hover:bg-page" style="background-color: var(--vf-raised);">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -474,7 +956,7 @@
              @keydown.escape.window="contextMenu.show = false"
              @click.away="if (!$event.ctrlKey) contextMenu.show = false"
              class="fixed bg-card rounded-lg shadow-lg border z-50 py-1"
-             style="border-color: #8A8A86;"
+             style="border-color: var(--vf-line);"
              :style="`left: ${contextMenu.x}px; top: ${contextMenu.y}px;`">
             <button @click="splitAtContextMenu()"
                     class="w-full px-4 py-2 text-left text-primary hover:bg-page flex items-center gap-2">
@@ -489,7 +971,7 @@
              @keydown.escape.window="regionContextMenu.show = false"
              @click.away="if (!$event.ctrlKey) regionContextMenu.show = false"
              class="fixed bg-card rounded-lg shadow-lg border z-50 py-1"
-             style="border-color: #8A8A86;"
+             style="border-color: var(--vf-line);"
              :style="`left: ${regionContextMenu.x}px; top: ${regionContextMenu.y}px;`">
             <button @click="splitAtRegionContextMenu()"
                     class="w-full px-4 py-2 text-left text-primary hover:bg-page flex items-center gap-2">
@@ -503,6 +985,8 @@
             </button>
         </div>
 
+        <!-- ============================================================ WORKBENCH: every file, the editor and all tools -->
+        <div x-show="view === 'workbench'" x-cloak>
         <!-- Main Container - Upload, Queue & File Info -->
         <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -515,12 +999,158 @@
                             <template x-if="showFolderTab">
                                 <button role="tab" :aria-selected="importTab === 'folder'" @click="importTab = 'folder'" class="px-3 py-1 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
                                         :class="importTab === 'folder' ? 'btn-primary font-semibold' : 'text-secondary hover:bg-page'"
-                                        :style="importTab === 'folder' ? '' : 'background-color: #F0EFEB;'">Import from folder</button>
+                                        :style="importTab === 'folder' ? '' : 'background-color: var(--vf-raised);'">Import from folder</button>
                             </template>
-                            <button role="tab" :aria-selected="importTab === 'upload' || !showFolderTab" @click="importTab = 'upload'" class="px-3 py-1 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
-                                    :class="(importTab === 'upload' || !showFolderTab) ? 'btn-primary font-semibold' : 'text-secondary hover:bg-page'"
-                                    :style="(importTab === 'upload' || !showFolderTab) ? '' : 'background-color: #F0EFEB;'">Upload</button>
+                            <button role="tab" :aria-selected="importTab === 'upload'" @click="importTab = 'upload'" class="px-3 py-1 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+                                    :class="importTab === 'upload' ? 'btn-primary font-semibold' : 'text-secondary hover:bg-page'"
+                                    :style="importTab === 'upload' ? '' : 'background-color: var(--vf-raised);'">Upload</button>
+                            <button x-show="recordingEnabled" x-cloak role="tab" :aria-selected="importTab === 'record'" @click="importTab = 'record'"
+                                    class="px-3 py-1 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+                                    :class="importTab === 'record' ? 'btn-primary font-semibold' : 'text-secondary hover:bg-page'"
+                                    :style="importTab === 'record' ? '' : 'background-color: var(--vf-raised);'">
+                                <span x-text="recordingActive ? '● Recording' : 'Record'"></span>
+                            </button>
                         </div>
+                    </div>
+
+                    <!-- Local macOS capture. No browser microphone or lossy intermediate. -->
+                    <div x-show="recordingEnabled && importTab === 'record'" x-cloak class="space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-sm text-secondary">Stereo · 24-bit WAV</p>
+                            <button @click="refreshRecordingDevices()" :disabled="recordingInputLocked" class="text-xs px-2 py-1 rounded bg-page disabled:opacity-50">↻ Refresh inputs</button>
+                        </div>
+                        <label class="block text-xs text-secondary">Audio input
+                            <select x-model.number="recordingInput.device" @change="recordingDeviceChanged()" :disabled="recordingInputLocked" class="mt-1 w-full p-2 rounded border bg-card text-primary disabled:opacity-60">
+                                <option value="" disabled>Select an input</option>
+                                <template x-for="device in recordingDevices" :key="device.id">
+                                    <option :value="device.id" :selected="device.id === recordingInput.device" x-text="`${device.name} (${device.channels} inputs)`"></option>
+                                </template>
+                            </select>
+                        </label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <label class="text-xs text-secondary">Left channel
+                                <select x-model.number="recordingInput.left" :disabled="recordingInputLocked" class="mt-1 w-full p-2 rounded border bg-card text-primary">
+                                    <template x-for="channel in recordingChannels" :key="channel"><option :value="channel" :selected="channel === recordingInput.left" x-text="channel"></option></template>
+                                </select>
+                            </label>
+                            <label class="text-xs text-secondary">Right channel
+                                <select x-model.number="recordingInput.right" :disabled="recordingInputLocked" class="mt-1 w-full p-2 rounded border bg-card text-primary">
+                                    <template x-for="channel in recordingChannels" :key="channel"><option :value="channel" :selected="channel === recordingInput.right" x-text="channel"></option></template>
+                                </select>
+                            </label>
+                            <label class="text-xs text-secondary">Sample rate
+                                <select x-model.number="recordingInput.rate" :disabled="recordingInputLocked" class="mt-1 w-full p-2 rounded border bg-card text-primary">
+                                    <!-- :selected keeps the shown rate in step with the model: x-model runs before these :value bindings exist -->
+                                    <option :value="44100" :selected="recordingInput.rate === 44100">44.1 kHz</option><option :value="48000" :selected="recordingInput.rate === 48000">48 kHz</option><option :value="96000" :selected="recordingInput.rate === 96000">96 kHz</option>
+                                </select>
+                            </label>
+                        </div>
+                        <label class="block text-xs text-secondary">Recording name (optional)
+                            <input x-model="recordingTitle" :disabled="recordingActive || recordingBusy" maxlength="120" placeholder="Artist — Album" class="mt-1 w-full p-2 rounded border bg-card text-primary">
+                        </label>
+                        <div class="rounded-lg p-3 bg-page space-y-2">
+                            <div class="flex items-center justify-between text-sm text-primary">
+                                <span class="font-semibold capitalize" x-text="recorder.state === 'monitoring' ? 'Checking levels' : recorder.state"></span>
+                                <span class="font-mono" x-text="formatTime(recorder.seconds || 0)"></span>
+                            </div>
+                            <template x-for="(label, channel) in ['L', 'R']" :key="label">
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="w-3 text-secondary" x-text="label"></span>
+                                    <div role="meter" :aria-label="`${label} input level`" aria-valuemin="-60" aria-valuemax="0" :aria-valuenow="Math.max(-60, recorder.levels[channel])"
+                                         class="flex-1 h-3 rounded overflow-hidden" style="background-color:var(--vf-well)">
+                                        <div class="h-full" :style="`width:${recordingMeterWidth(recorder.levels[channel])}%;background-color:${recorder.clipping[channel] ? 'var(--vf-bad)' : 'var(--vf-ok)'}`"></div>
+                                    </div>
+                                    <span class="w-16 text-right font-mono text-secondary" x-text="recorder.levels[channel] <= -100 ? '−∞ dB' : `${recorder.levels[channel]} dB`"></span>
+                                </div>
+                            </template>
+                            <div class="flex items-center gap-px overflow-hidden" style="height:32px" aria-hidden="true">
+                                <template x-for="(peak, i) in recordingHistory" :key="i"><div style="background:var(--vf-muted);flex:1;min-width:2px" :style="`height:${Math.max(2, peak)}%`"></div></template>
+                            </div>
+                            <p x-show="recorder.clipping.some(Boolean)" class="text-xs" style="color:var(--vf-bad)">Clipping detected. Lower the gain on your Scarlett. The indicator resets when a new recording starts.</p>
+                            <p x-show="recorder.state === 'paused'" class="text-xs text-secondary">Paused audio is not saved. Flip the record, then resume.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button x-show="!recordingActive && recorder.state !== 'monitoring'" @click="recordingAction('monitor', recordingInput)"
+                                    :disabled="recordingBusy || recordingInput.device === ''" class="px-3 py-2 rounded btn-primary text-sm disabled:opacity-50">Check levels</button>
+                            <button x-show="recorder.state === 'monitoring'" @click="recordingAction('start', {title: recordingTitle, identify_album: identifyAlbum})" :disabled="recordingBusy"
+                                    class="px-3 py-2 rounded text-white text-sm disabled:opacity-50" style="background:var(--vf-bad)">● Record</button>
+                            <button x-show="recorder.state === 'recording'" @click="recordingAction('pause', {side_flip: true})" :disabled="recordingBusy" class="px-3 py-2 rounded btn-primary text-sm disabled:opacity-50">Pause / flip side</button>
+                            <button x-show="recorder.state === 'recording'" @click="recordingAction('pause')" :disabled="recordingBusy" class="px-3 py-2 rounded bg-page text-sm disabled:opacity-50">Pause</button>
+                            <button x-show="recorder.state === 'paused'" @click="recordingAction('resume')" :disabled="recordingBusy" class="px-3 py-2 rounded btn-primary text-sm disabled:opacity-50">Resume</button>
+                            <button x-show="recordingActive || recorder.state === 'monitoring' || recorder.state === 'error'" @click="recordingAction('stop')" :disabled="recordingBusy"
+                                    class="px-3 py-2 rounded bg-page text-sm disabled:opacity-50" x-text="recorder.state === 'monitoring' ? 'Stop checking' : 'Stop & save'"></button>
+                            <span x-show="recordingBusy" class="text-xs text-secondary self-center" role="status">Working…</span>
+                        </div>
+                        <p x-show="recordingError" role="alert" class="text-sm rounded p-2" style="color:var(--vf-bad);background:var(--vf-bad-soft)" x-text="recordingError"></p>
+                        <div class="rounded-lg border p-3 space-y-2">
+                            <label class="flex items-center gap-2 text-sm text-primary">
+                                <input type="checkbox" x-model="identifyAlbum" :disabled="recordingActive || recordingBusy">
+                                Identify album automatically
+                            </label>
+                            <p class="text-xs text-secondary">AudD receives a 10-second music excerpt after 2 recorded minutes, with one retry around 3 minutes if needed. Your original WAV stays local.</p>
+                            <p x-show="songRecognition.recording_id === recorder.id && recorder.id" role="status" class="text-sm text-secondary" x-text="songRecognition.message"></p>
+                            <p x-show="songRecognition.song && songRecognition.recording_id === recorder.id" class="text-sm font-semibold text-primary"
+                               x-text="songRecognition.song ? `${songRecognition.song.artist} — ${songRecognition.song.title}` : ''"></p>
+                            <template x-if="songRecognition.selected_release && songRecognition.recording_id === recorder.id">
+                                <div class="flex gap-3 rounded bg-page p-2">
+                                    <img x-show="songRecognition.selected_release.cover_url" :src="songRecognition.selected_release.cover_url || ''" alt="Likely album cover" class="w-16 h-16 rounded object-cover" referrerpolicy="no-referrer">
+                                    <div class="min-w-0">
+                                        <p class="text-xs text-secondary">Likely album · pressing unconfirmed</p>
+                                        <p class="font-semibold text-sm text-primary" x-text="songRecognition.selected_release.title"></p>
+                                        <p class="text-xs text-secondary" x-text="`${songRecognition.selected_release.artist} · ${songRecognition.selected_release.tracks.length} tracks`"></p>
+                                        <a :href="`https://www.discogs.com/release/${songRecognition.selected_release.id}`" target="_blank" rel="noopener noreferrer" class="text-xs underline">View on Discogs</a>
+                                    </div>
+                                </div>
+                            </template>
+                            <details x-show="songRecognition.candidates.length && songRecognition.recording_id === recorder.id">
+                                <summary class="text-xs text-secondary cursor-pointer">Choose a different album</summary>
+                                <div class="space-y-1 mt-2">
+                                    <template x-for="candidate in songRecognition.candidates" :key="candidate.id">
+                                        <button @click="recognitionAction('select', {recording_id: recorder.id, release_id: candidate.id})" :disabled="recognitionBusy"
+                                                class="block w-full text-left rounded bg-page p-2 text-xs disabled:opacity-50">
+                                            <span x-text="`${candidate.artist} — ${candidate.title} (${candidate.year || 'year unknown'})`"></span>
+                                        </button>
+                                    </template>
+                                    <button @click="recognitionAction('select', {recording_id: recorder.id, release_id: null})" :disabled="recognitionBusy" class="text-xs underline text-secondary">Use manual Discogs search instead</button>
+                                </div>
+                            </details>
+                            <div class="flex gap-2 items-center">
+                                <button x-show="recorder.id && (recorder.seconds || 0) >= 10" @click="recognitionAction('identify')"
+                                        :disabled="recognitionBusy || ['identifying', 'looking_up'].includes(songRecognition.state) || (!songRecognition.configured && !songRecognition.song)"
+                                        class="px-2 py-1 rounded bg-page text-xs disabled:opacity-50"
+                                        x-text="songRecognition.song ? 'Retry album lookup' : 'Identify now'"></button>
+                                <span x-show="recognitionBusy" class="text-xs text-secondary">Working…</span>
+                            </div>
+                            <details :open="!songRecognition.configured">
+                                <summary class="text-xs text-secondary cursor-pointer" x-text="songRecognition.configured ? 'AudD token settings' : 'Set up AudD recognition'"></summary>
+                                <p class="text-xs text-secondary mt-2">Get a token from the <a href="https://dashboard.audd.io/" target="_blank" rel="noopener noreferrer" class="underline">AudD dashboard</a>. Trial and usage limits apply; <a href="https://audd.io/pricing/" target="_blank" rel="noopener noreferrer" class="underline">view current pricing</a>.</p>
+                                <label class="block text-xs text-secondary mt-2">AudD API token
+                                    <input type="password" x-model="recognitionTokenInput" autocomplete="off" maxlength="512" placeholder="Paste your AudD token" class="w-full p-2 mt-1 rounded border bg-card text-primary">
+                                </label>
+                                <div class="flex gap-2 mt-2">
+                                    <button @click="recognitionAction('token', {token: recognitionTokenInput})" :disabled="recognitionBusy || !recognitionTokenInput.trim()" class="px-2 py-1 rounded btn-primary text-xs disabled:opacity-50">Save token</button>
+                                    <button x-show="songRecognition.configured" @click="recognitionAction('token', {token: ''})" :disabled="recognitionBusy" class="px-2 py-1 rounded bg-page text-xs">Remove token</button>
+                                </div>
+                                <p class="text-xs text-secondary mt-1">Stored locally with access restricted to your Mac user account. It is never returned to the browser.</p>
+                            </details>
+                            <p x-show="recognitionNotice" role="status" class="text-xs text-secondary" x-text="recognitionNotice"></p>
+                            <p x-show="songRecognition.persistence_warning" class="text-xs text-secondary" x-text="songRecognition.persistence_warning"></p>
+                        </div>
+                        <p class="text-xs text-secondary">Use your Scarlett’s gain controls and direct monitoring. FlipsideFlow saves the input without effects or normalization.</p>
+                        <p class="text-xs text-secondary break-all" x-text="recorder.directory ? `Saved in ${recorder.directory}` : ''"></p>
+                        <p x-show="recorder.free_bytes != null" class="text-xs text-secondary" x-text="`${formatSize(recorder.free_bytes || 0)} free · ${recorder.side_markers?.length || 0} side flips marked`"></p>
+                        <details @toggle="if ($event.target.open) loadSavedRecordings()" class="text-sm text-primary">
+                            <summary class="cursor-pointer">Saved recordings</summary>
+                            <p x-show="savedRecordings.length === 0" class="text-xs text-secondary py-2">Completed and interrupted recordings appear here. Removing one from the editing queue keeps its original WAV.</p>
+                            <div class="max-h-40 overflow-auto space-y-2 mt-2">
+                                <template x-for="item in savedRecordings" :key="item.id">
+                                    <div class="flex items-center gap-2 p-2 rounded bg-page">
+                                        <div class="min-w-0 flex-1"><p class="truncate" :title="item.title" x-text="item.title"></p><p class="text-xs text-secondary" x-text="`${formatTime(item.seconds)}${item.state !== 'finished' ? ' · Interrupted' : ''}${item.error ? ' · Check audio' : ''}`"></p></div>
+                                        <button @click="openRecordedFile(item.id)" :disabled="recordingBusy || recordingActive" class="px-2 py-1 rounded btn-primary text-xs disabled:opacity-50" x-text="item.state === 'finished' ? 'Open' : 'Recover & open'"></button>
+                                    </div>
+                                </template>
+                            </div>
+                        </details>
                     </div>
 
                     <!-- Import from folder: files are read in place, never uploaded -->
@@ -528,7 +1158,7 @@
                         <div class="flex items-center gap-2 mb-2">
                             <p class="text-xs text-secondary flex-1 min-w-0 truncate" :title="importInfo.dir" x-text="importInfo.dir"></p>
                             <button x-show="importInfo.enabled" @click="loadImportList()" :disabled="importLoading" title="Refresh the folder list"
-                                    class="px-2 py-1 rounded text-xs text-secondary hover:bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1" style="background-color: #F0EFEB;"
+                                    class="px-2 py-1 rounded text-xs text-secondary hover:bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1" style="background-color: var(--vf-raised);"
                                     :class="{'opacity-60 cursor-not-allowed': importLoading}">↻ Refresh</button>
                         </div>
 
@@ -548,13 +1178,13 @@
                                         <div class="space-y-1 max-h-40 overflow-y-auto">
                                             <template x-for="file in importInfo.files" :key="file.name">
                                                 <div @click="onImportRowClick(file)" class="flex items-center gap-2 p-2 rounded-lg text-xs cursor-pointer"
-                                                     :class="{'opacity-60': file.stable === false}" style="background-color: #F0EFEB;">
+                                                     :class="{'opacity-60': file.stable === false}" style="background-color: var(--vf-raised);">
                                                     <input type="checkbox" @click.stop :checked="isImportSelected(file.name)" @change="toggleImportSelected(file.name)"
                                                            :disabled="file.stable === false" :aria-label="`Select ${file.name}`">
                                                     <span class="flex-1 min-w-0 truncate font-medium text-primary" :title="file.name" x-text="file.name"></span>
                                                     <span class="text-secondary whitespace-nowrap" x-text="formatSize(file.size)"></span>
                                                     <span class="text-secondary whitespace-nowrap"
-                                                          :style="importFileLabel(file) === 'Complete' ? 'color: #166534; font-weight: 600;' : ''"
+                                                          :style="importFileLabel(file) === 'Complete' ? 'color: var(--vf-ok); font-weight: 600;' : ''"
                                                           x-text="importFileLabel(file)"></span>
                                                 </div>
                                             </template>
@@ -572,13 +1202,13 @@
                                 <span x-show="importBusy" class="flex items-center gap-2"><div class="spinner"></div>Importing…</span>
                             </button>
                             <button x-show="desktopPicker" @click="chooseImportFiles()" :disabled="importBusy"
-                                    class="px-4 py-2 rounded-lg text-sm text-secondary hover:bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1" style="background-color: #F0EFEB;"
+                                    class="px-4 py-2 rounded-lg text-sm text-secondary hover:bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1" style="background-color: var(--vf-raised);"
                                     :class="{'opacity-60 cursor-not-allowed': importBusy}">Choose files…</button>
                         </div>
                     </div>
 
                     <!-- Upload tab -->
-                    <div x-show="importTab === 'upload' || !showFolderTab">
+                    <div x-show="importTab === 'upload'">
                     <div
                         @drop.prevent="handleDrop($event)"
                         @dragover.prevent="dragging = true"
@@ -621,7 +1251,7 @@
                                     @click="selectFile(file.id)"
                                     class="queue-item p-2 rounded-lg transition"
                                     :class="{'selected': file.id === currentFileId}"
-                                    style="background-color: #F0EFEB;"
+                                    style="background-color: var(--vf-raised);"
                                 >
                                     <div class="flex justify-between items-start">
                                         <div class="flex-1 min-w-0">
@@ -656,7 +1286,7 @@
                         <!-- Skip Discogs: silence-only detection (secondary action).  With a release
                              already picked, the same button retries a detection that failed. -->
                         <template x-if="!detectedTracks.length && currentFile">
-                            <button @click="selectedRelease ? redetectForTargets() : analyzeFile()" :disabled="analyzing || currentFileExporting" class="mt-3 px-3 py-1.5 rounded-lg text-xs text-secondary hover:bg-page" style="background-color: #F0EFEB;" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">
+                            <button @click="selectedRelease ? redetectForTargets() : analyzeFile()" :disabled="analyzing || currentFileExporting" class="mt-3 px-3 py-1.5 rounded-lg text-xs text-secondary hover:bg-page" style="background-color: var(--vf-raised);" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">
                                 <span x-show="!analyzing" x-text="selectedRelease ? 'Retry track detection' : 'Skip Discogs — detect tracks by silence only'"></span>
                                 <span x-show="analyzing" class="flex items-center gap-2">
                                     <div class="spinner"></div>
@@ -668,8 +1298,14 @@
                         <!-- Back to the search card when tracks exist but no release is chosen -->
                         <button x-show="detectedTracks.length && !selectedRelease" x-cloak @click="tryDiscogsAgain()"
                                 :disabled="analyzing || searchLoading"
-                                class="mt-3 px-3 py-2 rounded-lg text-sm text-primary hover:bg-page border" style="border-color: #8A8A86;"
+                                class="mt-3 px-3 py-2 rounded-lg text-sm text-primary hover:bg-page border" style="border-color: var(--vf-line);"
                                 :class="{'opacity-60 cursor-not-allowed': analyzing || searchLoading}">Try Discogs again</button>
+
+                        <!-- No Discogs match or no token: type the names, so the recording can still be exported -->
+                        <button x-show="currentFile && !selectedRelease" x-cloak @click="nameItMyself()"
+                                :disabled="analyzing || currentFileExporting"
+                                class="mt-3 ml-1 px-3 py-2 rounded-lg text-sm text-primary hover:bg-page border" style="border-color: var(--vf-line);"
+                                :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">✎ Name it myself</button>
 
                         <!-- Re-Analyze Button -->
                         <template x-if="detectedTracks.length > 0 && !selectedRelease">
@@ -684,10 +1320,10 @@
 
                         <!-- Smart Rescan: retry detection until it finds the expected track count -->
                         <template x-if="detectedTracks.length > 0">
-                            <div class="mt-3 pt-3 border-t" style="border-color: #F0EFEB;">
+                            <div class="mt-3 pt-3 border-t" style="border-color: var(--vf-raised);">
                                 <p class="text-xs text-secondary mb-2">Wrong number of tracks? Enter how many songs the recording has and Smart Rescan will adjust detection automatically.</p>
                                 <div class="flex items-center gap-2">
-                                    <input type="number" min="1" max="99" x-model="expectedTracks" placeholder="e.g. 6" class="w-20 px-3 py-2 border focus-primary rounded-lg text-sm" style="border-color: #8A8A86;" @keyup.enter="smartRescan(expectedTracks)">
+                                    <input type="number" min="1" max="99" x-model="expectedTracks" placeholder="e.g. 6" class="w-20 px-3 py-2 border focus-primary rounded-lg text-sm" style="border-color: var(--vf-line);" @keyup.enter="smartRescan(expectedTracks)">
                                     <button @click="smartRescan(expectedTracks)" :disabled="analyzing || currentFileExporting" class="px-4 py-2 btn-primary rounded-lg font-semibold text-sm" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">
                                         <span x-show="!analyzing">🎯 Smart Rescan</span>
                                         <span x-show="analyzing" class="flex items-center gap-2">
@@ -710,7 +1346,7 @@
                 <h3 class="text-lg font-semibold text-primary mb-1">🔍 Find the release on Discogs</h3>
                 <p class="text-sm text-secondary mb-4">Searched from the file name. Pick the release to name and tag the tracks.</p>
                 <div class="flex gap-2 mb-4">
-                    <input id="discogs-query" type="text" x-model="searchQuery" @keyup.enter="searchDiscogs()" aria-label="Search Discogs" placeholder="Enter artist or album name..." class="flex-1 min-w-0 px-4 py-2 border focus-primary rounded-lg" style="border-color: #8A8A86;">
+                    <input id="discogs-query" type="text" x-model="searchQuery" @keyup.enter="searchDiscogs()" aria-label="Search Discogs" placeholder="Enter artist or album name..." class="flex-1 min-w-0 px-4 py-2 border focus-primary rounded-lg" style="border-color: var(--vf-line);">
                     <button @click="searchDiscogs()" :disabled="searchLoading" class="px-6 py-2 btn-primary rounded-lg font-semibold" :class="{'opacity-60 cursor-not-allowed': searchLoading}">Search</button>
                 </div>
 
@@ -727,7 +1363,7 @@
 
                 <!-- Result filter -->
                 <label x-show="searchResults.length > 0 && !searchLoading" class="flex items-center gap-2 text-sm text-secondary cursor-pointer mt-1">
-                    <input type="checkbox" x-model="onlyWithLengths" class="w-4 h-4 rounded" style="accent-color: #E5A100;">
+                    <input type="checkbox" x-model="onlyWithLengths" class="w-4 h-4 rounded" style="accent-color: var(--vf-amber);">
                     Only show releases with track lengths
                 </label>
                 <p x-show="searchResults.length > 0 && !searchLoading && filteredResults.length === 0" x-cloak class="mt-3 text-sm text-secondary">No results with complete track lengths. Untick the filter to see all releases.</p>
@@ -737,8 +1373,8 @@
                         <div role="button" tabindex="0" @click="chooseResult(result)" @keydown.enter.self.prevent="chooseResult(result)" @keydown.space.self.prevent="chooseResult(result)"
                              :aria-label="`Use ${result.artist} - ${result.title}`"
                              class="album-card bg-card border-2 rounded-lg p-3 hover:shadow-lg" :class="{'opacity-60': result.opening}"
-                             :style="releaseDurationInfo(result).status === 'full' ? 'border-color: #10B981; box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35);' : 'border-color: #8A8A86;'">
-                            <img :src="result.cover_url || ''" :alt="result.title" class="w-full aspect-square object-cover rounded mb-2" style="background-color: #F0EFEB;" onerror="this.style.display='none'">
+                             :style="releaseDurationInfo(result).status === 'full' ? 'border-color: var(--vf-ok); box-shadow: 0 0 0 1px rgba(61, 220, 132, 0.35);' : 'border-color: var(--vf-line);'">
+                            <img :src="result.cover_url || ''" :alt="result.title" class="w-full aspect-square object-cover rounded mb-2" style="background-color: var(--vf-raised);" onerror="this.style.display='none'">
                             <p class="font-semibold text-sm truncate text-primary" x-text="result.artist"></p>
                             <p class="text-xs text-secondary truncate" x-text="result.title"></p>
                             <p class="text-xs text-secondary" x-text="result.year"></p>
@@ -754,35 +1390,38 @@
                                 </template>
                             </p>
                             <template x-if="!result.tracks && result.opening">
-                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: #F0EFEB; color: #7A5400;">
-                                    <span class="inline-block w-3 h-3 border-2 rounded-full animate-spin align-middle mr-1" style="border-color: #E5A100; border-top-color: transparent;"></span>Loading tracklist…
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: var(--vf-raised); color: var(--vf-amber-text);">
+                                    <span class="inline-block w-3 h-3 border-2 rounded-full animate-spin align-middle mr-1" style="border-color: var(--vf-amber); border-top-color: transparent;"></span>Loading tracklist…
                                 </span>
                             </template>
                             <template x-if="!result.tracks && !result.opening && result.detailStatus === 'error'">
-                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: rgba(229, 161, 0, 0.15); color: #7A5400;">couldn't load tracklist · click to retry</span>
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: rgba(229, 161, 0, 0.15); color: var(--vf-amber-text);">couldn't load tracklist · click to retry</span>
                             </template>
                             <template x-if="!result.tracks && !result.opening && result.detailStatus !== 'error'">
-                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: #F0EFEB; color: #5E5E5A;">checking lengths…</span>
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: var(--vf-raised); color: var(--vf-muted);">checking lengths…</span>
                             </template>
                             <template x-if="result.tracks && releaseDurationInfo(result).status === 'full'">
-                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: rgba(16, 185, 129, 0.15); color: #0A6B4B;">⏱ Track lengths</span>
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: var(--vf-ok-soft); color: var(--vf-ok);">⏱ Track lengths</span>
                             </template>
                             <template x-if="result.tracks && releaseDurationInfo(result).status === 'partial'">
-                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: rgba(229, 161, 0, 0.15); color: #7A5400;" x-text="`⏱ ${releaseDurationInfo(result).withDuration}/${releaseDurationInfo(result).total} lengths`"></span>
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: rgba(229, 161, 0, 0.15); color: var(--vf-amber-text);" x-text="`⏱ ${releaseDurationInfo(result).withDuration}/${releaseDurationInfo(result).total} lengths`"></span>
                             </template>
                             <template x-if="result.tracks && releaseDurationInfo(result).status === 'none'">
-                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: #F0EFEB; color: #5E5E5A;">No track lengths</span>
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: var(--vf-raised); color: var(--vf-muted);">No track lengths</span>
                             </template>
                             <template x-if="result.tracks && cardFit(result)">
-                                <p class="text-xs mt-1 font-medium" :style="cardFit(result).state === 'fit' ? 'color: #0A6B4B;' : 'color: #5E5E5A;'">
-                                    <span x-show="bestFitId === result.id" class="inline-block mr-1 px-1.5 py-0.5 rounded-full text-xs font-semibold" style="background-color: #0B6B4A; color: #FFFFFF;">Best fit</span>
+                                <p class="text-xs mt-1 font-medium" :style="cardFit(result).state === 'fit' ? 'color: var(--vf-ok);' : 'color: var(--vf-muted);'">
+                                    <span x-show="bestFitId === result.id" class="inline-block mr-1 px-1.5 py-0.5 rounded-full text-xs font-semibold" style="background-color: var(--vf-ok); color: var(--vf-well);">Best fit</span>
                                     <span x-text="fitText(cardFit(result))"></span>
                                 </p>
                             </template>
-                            <a @click.stop :href="`https://www.discogs.com${result.uri}`" target="_blank" rel="noopener noreferrer" class="text-xs underline hover:no-underline mt-2 inline-block" style="color: #8A5F00;">View on Discogs ↗</a>
+                            <a @click.stop :href="`https://www.discogs.com${result.uri}`" target="_blank" rel="noopener noreferrer" class="text-xs underline hover:no-underline mt-2 inline-block" style="color: var(--vf-amber-text);">View on Discogs ↗</a>
                         </div>
                     </template>
                 </div>
+                <p class="mt-4 text-sm text-secondary">Not on Discogs?
+                    <button type="button" @click="nameItMyself()" :disabled="analyzing || currentFileExporting" class="underline hover:no-underline text-primary">Type the album and track names yourself</button>.
+                </p>
             </div>
         </div>
 
@@ -790,29 +1429,63 @@
         <div id="release-card" x-show="currentFile && selectedRelease" x-cloak class="max-w-7xl mx-auto px-4 pb-2 sm:px-6 lg:px-8">
             <div class="bg-card rounded-lg shadow p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-primary">💿 Release</h3>
-                    <button @click="changeRelease()" :disabled="analyzing || currentFileExporting" class="px-4 py-2 rounded-lg text-primary hover:bg-page" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}" style="background-color: #F0EFEB;">← Change release</button>
+                    <h3 class="text-lg font-semibold text-primary" x-text="isManualRelease ? 'Album details' : '💿 Release'"></h3>
+                    <button @click="changeRelease()" :disabled="analyzing || currentFileExporting" class="px-4 py-2 rounded-lg text-primary hover:bg-page" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}" style="background-color: var(--vf-raised);">← Change release</button>
                 </div>
-                <div class="p-4 rounded-lg flex items-start gap-4" style="background-color: rgba(229, 161, 0, 0.1);">
+                <!-- Named by hand (no Discogs match): artist, album, year and one name per track -->
+                <template x-if="isManualRelease">
+                    <div class="p-4 rounded-lg space-y-4" style="background-color: rgba(229, 161, 0, 0.1);">
+                        <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                            <label class="sm:col-span-2 text-xs font-medium text-secondary">Artist
+                                <input id="manual-artist" type="text" x-model="selectedRelease.artist" maxlength="300" placeholder="e.g. Fleetwood Mac"
+                                       class="mt-1 w-full px-3 py-2 border focus-primary rounded-md text-sm text-primary bg-card" style="border-color: var(--vf-line);">
+                            </label>
+                            <label class="sm:col-span-2 text-xs font-medium text-secondary">Album
+                                <input id="manual-album" type="text" x-model="selectedRelease.title" maxlength="300" placeholder="e.g. Rumours"
+                                       class="mt-1 w-full px-3 py-2 border focus-primary rounded-md text-sm text-primary bg-card" style="border-color: var(--vf-line);">
+                            </label>
+                            <label class="text-xs font-medium text-secondary">Year
+                                <input id="manual-year" type="text" inputmode="numeric" x-model="selectedRelease.year" maxlength="4" placeholder="1977"
+                                       class="mt-1 w-full px-3 py-2 border focus-primary rounded-md text-sm text-primary bg-card" style="border-color: var(--vf-line);">
+                            </label>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-secondary mb-2">Track names <span class="text-muted">(blank ones are saved as "Track 1", "Track 2"…)</span></p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <template x-for="(track, idx) in detectedTracks" :key="idx">
+                                    <label class="flex items-center gap-2 text-sm" :class="{'opacity-50': track.ignored}">
+                                        <span class="w-14 text-xs font-mono text-secondary" x-text="`${track.number} · ${formatDuration(track.duration)}`"></span>
+                                        <input type="text" :id="`manual-track-${idx}`" x-model="selectedRelease.tracks[idx].title" :disabled="track.ignored" maxlength="300"
+                                               :placeholder="`Track ${track.number}`" :aria-label="`Name of track ${track.number}`"
+                                               class="flex-1 min-w-0 px-3 py-1.5 border focus-primary rounded-md text-sm text-primary bg-card" style="border-color: var(--vf-line);">
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <div x-show="!isManualRelease" class="p-4 rounded-lg flex items-start gap-4" style="background-color: rgba(229, 161, 0, 0.1);">
                     <!-- Hidden when the release has no cover or it fails to load (onload re-shows it:
                          the same img is reused for the next release's cover) -->
                     <template x-if="selectedRelease?.cover_url">
                         <img :src="selectedRelease.cover_url" alt="" data-testid="release-cover"
-                             class="w-16 h-16 sm:w-24 sm:h-24 flex-shrink-0 object-cover rounded" style="background-color: #F0EFEB;"
+                             class="w-16 h-16 sm:w-24 sm:h-24 flex-shrink-0 object-cover rounded" style="background-color: var(--vf-raised);"
                              onload="this.style.display=''" onerror="this.style.display='none'">
                     </template>
                     <div class="flex-1 min-w-0">
                         <p class="font-bold text-primary" x-text="selectedRelease ? `${selectedRelease.artist} - ${selectedRelease.title}` : ''"></p>
+                        <p x-show="selectedRelease && selectedRelease.id === recognitionReleaseId" class="text-xs text-secondary">Suggested from song recognition · check the album and pressing before export.</p>
                         <p class="text-sm text-secondary" x-text="selectedRelease ? `${selectedRelease.year} • ${selectedRelease.label}` : ''"></p>
-                        <!-- #8A5F00: 5.2:1 on this amber tint (the cards' #E5A100 would be 1.96:1) -->
+                        <!-- var(--vf-amber-text): 5.2:1 on this amber tint (the cards' var(--vf-amber) would be 1.96:1) -->
                         <a x-show="selectedRelease?.id" :href="selectedRelease ? `https://www.discogs.com/release/${selectedRelease.id}` : '#'"
                            target="_blank" rel="noopener noreferrer" data-testid="release-discogs-link"
-                           class="mt-1 inline-block text-sm underline hover:no-underline" style="color: #8A5F00;">View on Discogs ↗</a>
+                           class="mt-1 inline-block text-sm underline hover:no-underline" style="color: var(--vf-amber-text);">View on Discogs ↗</a>
                     </div>
                 </div>
 
                 <!-- Side selection: guided detection places as many tracks as the chosen sides have -->
-                <div id="side-picker" class="mt-4 p-4 bg-page rounded-lg">
+                <div id="side-picker" x-show="!isManualRelease" class="mt-4 p-4 bg-page rounded-lg">
                     <div class="flex flex-wrap justify-between items-baseline gap-2 mb-2">
                         <h4 class="text-sm font-medium text-secondary" x-text="sideChips.length > 1 ? 'What does this recording contain?' : 'Tracks on this release'"></h4>
                         <span class="text-xs text-secondary" x-text="`Recording: ${formatDuration(currentFile?.duration)}` + (currentFile?.musicDuration > 0 ? ` (music ${formatDuration(currentFile.musicDuration)})` : '')"></span>
@@ -823,12 +1496,12 @@
                         <template x-for="preset in sidePresets" :key="preset.label">
                             <button type="button" @click="applyPreset(preset.sides)" :disabled="analyzing || currentFileExporting"
                                     :aria-pressed="sidesEqualSelection(preset.sides)"
-                                    class="px-4 py-2 rounded-lg border-2 transition text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#1E1E1E]"
-                                    :style="sidesEqualSelection(preset.sides) ? 'border-color: #E5A100; background-color: rgba(229, 161, 0, 0.1);' : 'border-color: #8A8A86;'"
+                                    class="px-4 py-2 rounded-lg border-2 transition text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#F0B323]"
+                                    :style="sidesEqualSelection(preset.sides) ? 'border-color: var(--vf-amber); background-color: rgba(229, 161, 0, 0.1);' : 'border-color: var(--vf-line);'"
                                     :class="{'hover:bg-card': !sidesEqualSelection(preset.sides), 'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">
                                 <span class="text-sm font-semibold text-primary"><span x-show="sidesEqualSelection(preset.sides)" aria-hidden="true">✓ </span><span x-text="preset.label"></span></span>
                                 <span class="text-xs text-secondary ml-1" x-text="`${preset.trackCount} tracks • ${preset.totalSeconds !== null ? formatDuration(preset.totalSeconds) : 'length unknown'}`"></span>
-                                <span x-show="isMatchedScope(preset.sides)" class="block text-xs font-medium" style="color: #0A6B4B;">✓ matches recording length</span>
+                                <span x-show="isMatchedScope(preset.sides)" class="block text-xs font-medium" style="color: var(--vf-ok);">✓ matches recording length</span>
                             </button>
                         </template>
                     </div>
@@ -838,12 +1511,12 @@
                         <template x-for="g in sideChips" :key="g.side">
                             <button type="button" @click="toggleSide(g.side)" :disabled="analyzing || currentFileExporting || sideChips.length <= 1"
                                     :aria-pressed="selectedSides.includes(g.side)"
-                                    class="px-4 py-2 rounded-lg border-2 transition text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#1E1E1E]"
-                                    :style="selectedSides.includes(g.side) ? 'border-color: #E5A100; background-color: rgba(229, 161, 0, 0.1);' : 'border-color: #8A8A86;'"
+                                    class="px-4 py-2 rounded-lg border-2 transition text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#F0B323]"
+                                    :style="selectedSides.includes(g.side) ? 'border-color: var(--vf-amber); background-color: rgba(229, 161, 0, 0.1);' : 'border-color: var(--vf-line);'"
                                     :class="{'hover:bg-card': !selectedSides.includes(g.side) && sideChips.length > 1, 'opacity-60 cursor-not-allowed': analyzing || currentFileExporting || sideChips.length <= 1}">
                                 <span class="text-sm font-semibold text-primary"><span x-show="selectedSides.includes(g.side) && sideChips.length > 1" aria-hidden="true">✓ </span><span x-text="sideLabel(g.side)"></span></span>
                                 <span class="text-xs text-secondary ml-1" x-text="`${g.tracks.length} tracks • ${g.totalSeconds !== null ? formatDuration(g.totalSeconds) : 'length unknown'}`"></span>
-                                <span x-show="isMatchedScope([g.side]) && sideChips.length > 1" class="block text-xs font-medium" style="color: #0A6B4B;">✓ matches recording length</span>
+                                <span x-show="isMatchedScope([g.side]) && sideChips.length > 1" class="block text-xs font-medium" style="color: var(--vf-ok);">✓ matches recording length</span>
                             </button>
                         </template>
                     </div>
@@ -857,11 +1530,11 @@
                 </div>
 
                 <!-- Release or sides changed after hand edits: ask before re-placing the cuts -->
-                <div x-show="editBanner" x-cloak role="status" class="mt-4 p-3 rounded-lg flex flex-wrap items-center gap-3" style="background-color: rgba(229, 161, 0, 0.15); border: 1px solid #E5A100;">
+                <div x-show="editBanner" x-cloak role="status" class="mt-4 p-3 rounded-lg flex flex-wrap items-center gap-3" style="background-color: rgba(229, 161, 0, 0.15); border: 1px solid var(--vf-amber);">
                     <p class="text-sm text-primary flex-1" style="min-width: 12rem;">You've adjusted the track boundaries by hand. Snap them to these Discogs lengths, or keep your edits?</p>
                     <div class="flex gap-2">
                         <button type="button" @click="snapToDiscogs()" :disabled="analyzing || currentFileExporting" class="px-3 py-1.5 btn-primary rounded-lg text-sm font-semibold">Snap to Discogs</button>
-                        <button type="button" @click="keepMyEdits()" class="px-3 py-1.5 rounded-lg text-sm text-primary" style="background-color: #F0EFEB;">Keep my edits</button>
+                        <button type="button" @click="keepMyEdits()" class="px-3 py-1.5 rounded-lg text-sm text-primary" style="background-color: var(--vf-raised);">Keep my edits</button>
                     </div>
                 </div>
             </div>
@@ -872,11 +1545,18 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="text-2xl font-bold text-primary">Waveform Editor</h3>
-                    <div class="flex gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="flex items-center gap-2 mr-2 text-sm text-secondary" title="Volume for every player in FlipsideFlow">
+                            <span aria-hidden="true">🔈</span>
+                            <input type="range" min="0" max="1" step="0.05" :value="playbackVolume"
+                                   @input="setVolume($event.target.value)" aria-label="Playback volume"
+                                   class="w-24" style="accent-color: var(--vf-amber);">
+                            <span class="w-10 text-right font-mono text-xs" x-text="Math.round(playbackVolume * 100) + '%'"></span>
+                        </label>
                         <button @click="playWaveform()" :disabled="!waveform" class="px-4 py-2 btn-primary rounded-lg">▶️ Play</button>
                         <button @click="stopWaveform()" :disabled="!waveform" class="px-4 py-2 btn-danger rounded-lg">⏹️ Stop</button>
-                        <button @click="zoomIn()" :disabled="!waveform" class="px-4 py-2 text-white rounded-lg" style="background-color: #3D3D3D;">🔍 +</button>
-                        <button @click="zoomOut()" :disabled="!waveform" class="px-4 py-2 text-white rounded-lg" style="background-color: #3D3D3D;">🔍 -</button>
+                        <button @click="zoomIn()" :disabled="!waveform" class="px-4 py-2 text-white rounded-lg" style="background-color: var(--vf-line);">🔍 +</button>
+                        <button @click="zoomOut()" :disabled="!waveform" class="px-4 py-2 text-white rounded-lg" style="background-color: var(--vf-line);">🔍 -</button>
                     </div>
                 </div>
             </div>
@@ -901,21 +1581,22 @@
                                 <span class="font-medium text-primary">Playing Track <span x-text="currentPlayingTrack"></span></span>
                                 <button @click="stopPreview()" class="px-3 py-1 btn-danger rounded text-sm">⏹️ Stop</button>
                             </div>
-                            <audio x-ref="audioPlayer" controls class="w-full"></audio>
+                            <audio x-ref="audioPlayer" controls class="w-full"
+                                   @play="stopWaveform()" @volumechange="setVolume($event.target.volume)"></audio>
                         </div>
                         <div class="space-y-3">
                             <template x-for="(track, idx) in detectedTracks" :key="idx">
                                 <div class="p-3 bg-page rounded" :class="{ 'opacity-50': track.ignored }">
                                     <div class="flex justify-between items-center mb-2">
                                         <div class="flex items-center gap-2">
-                                            <input type="checkbox" :checked="track.ignored" @change="toggleTrackIgnored(track)" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="w-4 h-4 rounded" style="accent-color: #D94032;" title="Ignore this track">
+                                            <input type="checkbox" :checked="track.ignored" @change="toggleTrackIgnored(track)" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="w-4 h-4 rounded" style="accent-color: var(--vf-bad);" title="Ignore this track">
                                             <label class="text-xs text-muted cursor-pointer" :class="{'opacity-60 cursor-not-allowed': analyzing}" @click="toggleTrackIgnored(track)">Ignore</label>
                                             <button @click="playPreview(track.number)" :disabled="track.ignored" class="px-3 py-1 btn-primary rounded text-sm" title="Play 30-second preview">▶️ Play</button>
                                             <span class="font-medium text-primary" :class="{ 'line-through text-muted': track.ignored }">Track <span x-text="track.number"></span></span>
                                         </div>
                                         <div class="flex gap-2">
                                             <button @click="deleteTrack(track.number)" class="px-3 py-1 btn-danger rounded text-sm" title="Delete this track">🗑️ Delete</button>
-                                            <button @click="track.editing = !track.editing" :disabled="track.ignored" class="px-3 py-1 rounded text-sm text-primary" style="background-color: #F0EFEB;" :class="{'opacity-50 cursor-not-allowed': track.ignored}">
+                                            <button @click="track.editing = !track.editing" :disabled="track.ignored" class="px-3 py-1 rounded text-sm text-primary" style="background-color: var(--vf-raised);" :class="{'opacity-50 cursor-not-allowed': track.ignored}">
                                                 <span x-show="!track.editing">✏️ Adjust</span>
                                                 <span x-show="track.editing">✓ Done</span>
                                             </button>
@@ -927,11 +1608,11 @@
                                     <div x-show="track.editing" class="grid grid-cols-2 gap-4 mt-2">
                                         <div>
                                             <label class="block text-xs font-medium text-secondary mb-1">Start Time (seconds)</label>
-                                            <input type="number" step="0.1" :value="track.start" @input="updateTrackStart(idx, $event.target.value)" class="w-full px-3 py-2 border focus-primary rounded-md text-sm" style="border-color: #8A8A86;">
+                                            <input type="number" step="0.1" :value="track.start" @input="updateTrackStart(idx, $event.target.value)" class="w-full px-3 py-2 border focus-primary rounded-md text-sm" style="border-color: var(--vf-line);">
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-secondary mb-1">End Time (seconds)</label>
-                                            <input type="number" step="0.1" :value="track.end" @input="updateTrackEnd(idx, $event.target.value)" class="w-full px-3 py-2 border focus-primary rounded-md text-sm" style="border-color: #8A8A86;">
+                                            <input type="number" step="0.1" :value="track.end" @input="updateTrackEnd(idx, $event.target.value)" class="w-full px-3 py-2 border focus-primary rounded-md text-sm" style="border-color: var(--vf-line);">
                                         </div>
                                     </div>
                                 </div>
@@ -942,14 +1623,14 @@
                     <!-- Track Mapping -->
                     <div x-show="selectedRelease" x-cloak class="bg-card rounded-lg shadow p-6">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-semibold text-primary">🎚️ Track Mapping</h3>
-                            <div class="flex gap-2">
-                                <button @click="reverseMapping()" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="px-4 py-2 rounded-lg text-primary hover:bg-page" style="background-color: #F0EFEB;">↕️ Reverse</button>
+                            <h3 class="text-lg font-semibold text-primary" x-text="isManualRelease ? 'Export' : '🎚️ Track Mapping'"></h3>
+                            <div x-show="!isManualRelease" class="flex gap-2">
+                                <button @click="reverseMapping()" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="px-4 py-2 rounded-lg text-primary hover:bg-page" style="background-color: var(--vf-raised);">↕️ Reverse</button>
                             </div>
                         </div>
 
                         <!-- Track Count Mismatch Warning -->
-                        <div x-show="showTrackCountMismatch" class="mb-4 p-4 rounded-lg border-2" style="background-color: rgba(217, 64, 50, 0.1); border-color: #D94032;">
+                        <div x-show="showTrackCountMismatch" class="mb-4 p-4 rounded-lg border-2" style="background-color: rgba(217, 64, 50, 0.1); border-color: var(--vf-bad);">
                             <div class="flex items-start gap-3">
                                 <span class="text-2xl">⚠️</span>
                                 <div class="flex-1">
@@ -984,9 +1665,9 @@
                             <div class="flex gap-3">
                                 <template x-for="fmt in availableFormats" :key="fmt.id">
                                     <button type="button"
-                                            @click="outputFormat = fmt.id; console.log('Format selected:', fmt.id)"
+                                            @click="outputFormat = fmt.id"
                                             class="flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg border-2 transition"
-                                            :style="outputFormat === fmt.id ? 'border-color: #E5A100; color: #E5A100; font-weight: 600;' : 'border-color: #8A8A86;'"
+                                            :style="outputFormat === fmt.id ? 'border-color: var(--vf-amber); color: var(--vf-amber); font-weight: 600;' : 'border-color: var(--vf-line);'"
                                             :class="outputFormat !== fmt.id ? 'hover:bg-card' : ''">
                                         <span class="text-sm" x-text="fmt.label"></span>
                                     </button>
@@ -998,7 +1679,7 @@
                         <div class="mb-4 p-4 bg-page rounded-lg">
                             <button type="button" @click="restorationLevel = restorationLevel === 1 ? 0 : 1"
                                     class="cursor-pointer px-4 py-2 rounded-lg border-2 transition text-sm font-medium"
-                                    :style="restorationLevel === 1 ? 'border-color: #E5A100; color: #E5A100; font-weight: 600;' : 'border-color: #8A8A86;'"
+                                    :style="restorationLevel === 1 ? 'border-color: var(--vf-amber); color: var(--vf-amber); font-weight: 600;' : 'border-color: var(--vf-line);'"
                                     :class="restorationLevel !== 1 ? 'hover:bg-card' : ''">
                                 Clean Up Clicks &amp; Rumble
                             </button>
@@ -1006,8 +1687,8 @@
                         </div>
 
                         <!-- Mapping Table -->
-                        <div class="space-y-2 mb-4">
-                            <div class="grid grid-cols-2 gap-4 text-sm font-semibold text-secondary pb-2" style="border-bottom: 1px solid #8A8A86;">
+                        <div x-show="!isManualRelease" class="space-y-2 mb-4">
+                            <div class="grid grid-cols-2 gap-4 text-sm font-semibold text-secondary pb-2" style="border-bottom: 1px solid var(--vf-line);">
                                 <div>Detected Track</div>
                                 <div>Maps to Discogs Track</div>
                             </div>
@@ -1018,7 +1699,7 @@
                                         <span class="text-secondary text-sm ml-2">(<span x-text="formatDuration(track.duration)"></span>)</span>
                                     </div>
                                     <div>
-                                        <select x-model="customMapping[idx]" @change="updateCustomMapping()" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="w-full px-3 py-2 border focus-primary rounded-md text-sm" style="border-color: #8A8A86;">
+                                        <select x-model="customMapping[idx]" @change="updateCustomMapping()" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="w-full px-3 py-2 border focus-primary rounded-md text-sm" style="border-color: var(--vf-line);">
                                             <template x-for="(dt, dtIdx) in (selectedRelease?.tracks || [])" :key="dtIdx">
                                                 <option :value="dtIdx" x-text="`${dt.position} - ${dt.title}`"></option>
                                             </template>
@@ -1040,7 +1721,7 @@
                     </div>
 
                     <!-- Success Message -->
-                    <div x-show="successMessage" x-cloak class="rounded-lg p-6" style="background-color: rgba(229, 161, 0, 0.1); border: 2px solid #E5A100;">
+                    <div x-show="successMessage" x-cloak class="rounded-lg p-6" style="background-color: rgba(229, 161, 0, 0.1); border: 2px solid var(--vf-amber);">
                         <h3 class="text-lg font-bold text-primary mb-2">✓ Processing Complete!</h3>
                         <p class="text-secondary" x-text="successMessage"></p>
                         <button @click="resetForNextFile()" class="mt-4 px-6 py-2 btn-primary rounded-lg">
@@ -1050,25 +1731,48 @@
             </div>
         </div>
 
+        </div>
+
         <!-- Footer -->
-        <footer class="bg-header mt-12 py-6 border-t" style="border-color: #3D3D3D;">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <p class="text-muted text-sm mb-2">
-                    Built with ❤️ for vinyl enthusiasts
-                </p>
-                <p class="text-sm">
-                    <a href="https://vinylflow.app/" target="_blank" rel="noopener noreferrer" class="font-semibold hover:underline" style="color: #E5A100;">vinylflow.app</a>
-                    <span class="text-muted mx-2">•</span>
-                    <a href="https://vinylflow.app/contact" target="_blank" rel="noopener noreferrer" class="text-muted hover:underline">Contact Us</a>
-                    <span class="text-muted mx-2">•</span>
-                    <a href="https://buymeacoffee.com/olimic1000" target="_blank" rel="noopener noreferrer" class="text-muted hover:underline">Like The App? Buy Us A Coffee</a>
-                    <span class="text-muted mx-2">•</span>
-                    <span class="text-muted">© 2026 VinylFlow</span>
-                </p>
-            </div>
+        <footer class="mt-12 py-6 border-t" style="border-color: var(--vf-line);" :style="bar.queue.length ? 'margin-bottom: 76px' : ''">
+            <p class="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-muted text-center">
+                FlipsideFlow · based on
+                <a href="https://vinylflow.app/" target="_blank" rel="noopener noreferrer" class="hover:underline">VinylFlow</a>, MIT licensed ·
+                <a href="https://buymeacoffee.com/olimic1000" target="_blank" rel="noopener noreferrer" class="hover:underline">Buy the VinylFlow authors a coffee</a>
+            </p>
         </footer>
+
+        <!-- The one player: library tracks and review previews.  Starting it stops every other player. -->
+        <audio x-ref="barPlayer" preload="none" class="hidden"
+               @play="bar.playing = true" @pause="bar.playing = false" @ended="barNext()"
+               @timeupdate="onBarTime()" @loadedmetadata="onBarTime()" @error="onBarError()"
+               @volumechange="setVolume($event.target.volume)"></audio>
+        <div x-show="bar.queue.length" x-cloak class="vf-bar" role="region" aria-label="Player">
+            <div class="max-w-6xl mx-auto flex items-center gap-4">
+                <div class="flex items-center gap-1">
+                    <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="barPrev()" aria-label="Previous track">⏮</button>
+                    <button type="button" class="vf-play" style="width:38px;height:38px;background:var(--vf-amber);color:var(--vf-on-amber)" @click="toggleBar()" :aria-label="bar.playing ? 'Pause' : 'Play'" x-text="bar.playing ? '❚❚' : '▶'"></button>
+                    <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="barNext()" aria-label="Next track">⏭</button>
+                </div>
+                <img x-show="barItem?.cover" :src="barItem?.cover || ''" alt="" class="w-10 h-10 rounded object-cover hidden sm:block" referrerpolicy="no-referrer">
+                <div class="flex-1 min-w-0 space-y-1">
+                    <div class="flex justify-between gap-3 text-xs">
+                        <span class="truncate"><span class="text-primary" x-text="barItem ? `${barItem.position ? barItem.position + ' ' : ''}${barItem.title}` : ''"></span>
+                            <span class="text-muted" x-text="barItem ? ' — ' + barItem.subtitle : ''"></span></span>
+                        <span class="font-mono text-muted shrink-0" x-text="`${formatDuration(bar.time)} / ${formatDuration(bar.duration)}`"></span>
+                    </div>
+                    <input type="range" class="vf-range w-full" min="0" :max="bar.duration || 0" step="0.1" :value="bar.time"
+                           @input="seekBar($event.target.value)" aria-label="Position in track">
+                </div>
+                <label class="hidden md:flex items-center gap-2 text-xs text-muted font-mono">VOL
+                    <input type="range" class="vf-range w-20" min="0" max="1" step="0.05" :value="playbackVolume" @input="setVolume($event.target.value)" aria-label="Volume">
+                </label>
+                <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="pauseBar(); bar.queue = []; bar.index = -1" aria-label="Close the player">✕</button>
+            </div>
+        </div>
     </div>
 
+    <script src="/static/flow.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

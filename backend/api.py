@@ -1,5 +1,5 @@
 """
-VinylFlow - FastAPI Backend
+FlipsideFlow (based on VinylFlow) - FastAPI Backend
 
 Provides REST API and WebSocket endpoints for automated vinyl record digitization.
 Handles file uploads, audio analysis, metadata fetching, and track processing.
@@ -23,7 +23,9 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Query, WebSocket, 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from backend.security import SameOriginMiddleware
-from pydantic import BaseModel
+from backend.recording_api import router as recording_router, shutdown_recording
+from backend.library_api import router as library_router, enable_library
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,10 @@ from audio_processor import (
 )
 from track_boundaries import (
     MIN_ALIGNED_TRACK_S,
+    BoundaryInfo,
+    Gap,
+    GuidedBoundaries,
+    Track,
     boundaries_from_expected_durations,
     find_side_changes,
     gaps_from_envelope,
@@ -46,7 +52,7 @@ from track_boundaries import (
     music_span,
     smooth_envelope,
 )
-from metadata_handler import MetadataHandler
+from metadata_handler import DiscogsRelease, MetadataHandler
 from backend.sessions import (
     OutputSpec,
     ProgressEvent,
@@ -57,11 +63,13 @@ from backend.sessions import (
 )
 
 # Initialize FastAPI app
-app = FastAPI(title="VinylFlow API", version="1.0.0")
+app = FastAPI(title="FlipsideFlow API", version="1.0.0")
 
 # The UI is same-origin, so no CORS: `*` let any website drive this local API.
 # Reject foreign Host/Origin instead (DNS rebinding, cross-site form posts and WebSockets).
 app.add_middleware(SameOriginMiddleware)
+app.include_router(recording_router)
+app.include_router(library_router)
 
 # Global state management.  ``session_store`` owns every Session;
 # ``websocket_connections`` is the list of subscribers for progress
@@ -98,6 +106,8 @@ def _serialize_uploaded(session: Session) -> dict:
         "size": session.source_size,
         "duration": session.source_duration,
         "status": _session_status(session),
+        "recording_side_markers": session.recording_side_markers,
+        "recognition": session.recognition,
     }
 
 
@@ -152,6 +162,18 @@ metadata_handler = MetadataHandler(config.discogs_token, config.discogs_user_age
 _upload_dir_env = os.getenv("VINYLFLOW_UPLOAD_DIR")
 UPLOAD_DIR = Path(_upload_dir_env) if _upload_dir_env else Path(__file__).parent.parent / "temp_uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _library_skip_dirs():
+    """Never list raw recordings or temp files as albums, wherever those folders live."""
+    from backend import recording_api
+    skip = [UPLOAD_DIR]
+    if recording_api.recorder is not None:
+        skip.append(recording_api.recorder.root)
+    return skip
+
+
+enable_library(lambda: config.default_output_dir, _library_skip_dirs, UPLOAD_DIR / "library-cache")
 
 
 def _require_source(session: Session) -> None:
@@ -276,6 +298,11 @@ async def startup_event():
     asyncio.create_task(cleanup_old_files())
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    await asyncio.to_thread(shutdown_recording)
+
+
 # Pydantic models for API requests/responses
 class AnalyzeRequest(BaseModel):
     file_id: str
@@ -309,6 +336,19 @@ class TrackMapping(BaseModel):
     discogs: str
 
 
+class ManualTrack(BaseModel):
+    position: str = Field(pattern=r"^[A-Z]{1,2}\d{1,3}$")
+    title: str = Field(min_length=1, max_length=300)
+
+
+class ManualRelease(BaseModel):
+    """Artist, album and track names typed in when Discogs has no match."""
+    artist: str = Field(min_length=1, max_length=300)
+    title: str = Field(min_length=1, max_length=300)
+    year: Optional[int] = Field(default=None, ge=1000, le=9999)
+    tracks: List[ManualTrack] = Field(min_length=1, max_length=200)
+
+
 class TrackBoundary(BaseModel):
     number: int
     start: float
@@ -318,7 +358,8 @@ class TrackBoundary(BaseModel):
 
 class ProcessRequest(BaseModel):
     file_id: str
-    release_id: int
+    release_id: Optional[int] = None
+    manual_release: Optional[ManualRelease] = None   # instead of release_id: no Discogs match
     track_mapping: List[TrackMapping]
     reversed: bool = False
     track_boundaries: Optional[List[TrackBoundary]] = None
@@ -332,12 +373,13 @@ class ConfigUpdate(BaseModel):
     min_silence_duration: Optional[float] = None
     min_track_length: Optional[float] = None
     output_dir: Optional[str] = None
+    playback_volume: Optional[float] = None
     track_numbering: Optional[str] = None
 
 
 class DiscogsSetupRequest(BaseModel):
     token: str
-    user_agent: Optional[str] = "VinylFlow/1.0"
+    user_agent: Optional[str] = "FlipsideFlow/1.0"
 
 
 # WebSocket broadcast helper
@@ -383,7 +425,7 @@ async def read_root():
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
     return HTMLResponse(
-        content="<h1>VinylFlow</h1><p>Frontend not found. Please create static/index.html</p>"
+        content="<h1>FlipsideFlow</h1><p>Frontend not found. Please create static/index.html</p>"
     )
 
 
@@ -1003,22 +1045,24 @@ async def analyze_guided(request: GuidedAnalyzeRequest):
         all_known = bool(known) and None not in known
         try_align = len(known) >= 2  # no length at all: sides and clear gaps decide (even split)
 
-        def _compute():
-            music_start, music_end = music_span(db, ENVELOPE_FRAME_S)
+        def _place(env, lengths, breaks, count):
+            """Guided placement over one envelope; returns (tracks, matched, guided, span)."""
+            music_start, music_end = music_span(env, ENVELOPE_FRAME_S)
+            have_all = bool(lengths) and None not in lengths
             result = None
-            if try_align:
+            if len(lengths) >= 2:
                 result = guided_by_alignment(
-                    db, ENVELOPE_FRAME_S, music_start, music_end, known, side_breaks=side_breaks,
+                    env, ENVELOPE_FRAME_S, music_start, music_end, lengths, side_breaks=breaks,
                 )
-            if result is None and all_known:
+            if result is None and have_all:
                 gaps = gaps_from_envelope(
-                    db,
+                    env,
                     ENVELOPE_FRAME_S,
                     audio_processor.SMART_RESCAN_LADDER[0][0],
                     audio_processor.SMART_RESCAN_LADDER[0][1],
                 )
                 placed = boundaries_from_expected_durations(
-                    gaps, music_start, music_end, known, side_breaks=side_breaks,
+                    gaps, music_start, music_end, lengths, side_breaks=breaks,
                 )
                 # It places every track whatever the span, clamping surplus cuts to the end
                 # of the music, so a track too short to be one means the tracks don't fit.
@@ -1027,12 +1071,54 @@ async def analyze_guided(request: GuidedAnalyzeRequest):
             if result is not None:
                 # Aligned cuts touch, so for them only the outer edges widen; the gap/scale
                 # model's snapped cuts can widen into their gaps.
-                refined = audio_processor.refine_tracks(db, result.tracks)
+                refined = audio_processor.refine_tracks(env, result.tracks)
                 return refined, True, result, music_start, music_end
-            tracks, info = audio_processor.tracks_for_count_from_envelope(
-                db, request.expected_tracks
-            )
+            if count == 1:
+                return [Track(1, music_start, music_end)], True, None, music_start, music_end
+            tracks, info = audio_processor.tracks_for_count_from_envelope(env, count)
             return tracks, info["matched"], None, music_start, music_end
+
+        # Side flips pressed while recording are exact side changes: split each side on its
+        # own, so a side break can never land anywhere else.  Only used when the flips and the
+        # chosen sides agree (one flip per side change); otherwise detection guesses as before.
+        flips = sorted(t for t in getattr(session, "recording_side_markers", []) or [] if 0 < t < recording_s)
+
+        def _compute():
+            if not side_breaks or len(flips) != len(side_breaks):
+                return _place(db, known, side_breaks, request.expected_tracks)
+            edges = [0.0, *flips, recording_s]
+            counts = [b - a for a, b in zip([0, *side_breaks], [*side_breaks, request.expected_tracks])]
+            all_tracks, all_matched, infos, first = [], True, [], 0
+            spans = []
+            for side, count in enumerate(counts):
+                lo, hi = edges[side], edges[side + 1]
+                frames = slice(int(round(lo / ENVELOPE_FRAME_S)), int(round(hi / ENVELOPE_FRAME_S)))
+                lengths = known[first:first + count] if known else []
+                tracks, matched, guided, m_start, m_end = _place(db[frames], lengths, [], count)
+                all_matched = all_matched and matched and len(tracks) == count
+                offset = frames.start * ENVELOPE_FRAME_S
+                for t in tracks:
+                    all_tracks.append(Track(len(all_tracks) + 1, t.start + offset, t.end + offset))
+                infos.append((guided, offset, first))
+                spans.append((m_start + offset, m_end + offset))
+                first += count
+            guided_parts = [g for g, _, _ in infos if g is not None]
+            combined = None
+            if len(guided_parts) == len(infos):
+                bounds = []
+                for guided, offset, base in infos:
+                    for b in guided.boundaries:
+                        gap = Gap(b.gap.start + offset, None if b.gap.end is None else b.gap.end + offset) if b.gap else None
+                        bounds.append(BoundaryInfo(index=b.index + base, expected=b.expected + offset, snapped=b.snapped,
+                                                   gap=gap, position=b.position + offset))
+                first_guided = guided_parts[0]
+                combined = GuidedBoundaries(
+                    tracks=all_tracks, boundaries=bounds, scale=first_guided.scale,
+                    scale_clamped=any(g.scale_clamped for g in guided_parts), raw_scale=first_guided.raw_scale,
+                    model="sides" if all(g.model != "align-even" for g in guided_parts) else "align-even",
+                    gap_s=first_guided.gap_s,
+                )
+            return all_tracks, all_matched, combined, spans[0][0], spans[-1][1]
 
         tracks, matched, guided, music_start, music_end = await asyncio.to_thread(_compute)
         session.set_boundaries(tracks)
@@ -1348,6 +1434,13 @@ async def process_file(request: ProcessRequest):
         raise HTTPException(status_code=404, detail="File not found")
     _require_source(session)
 
+    if (request.release_id is None) == (request.manual_release is None):
+        raise HTTPException(status_code=422, detail="Pick a Discogs release or type the album details, not both.")
+    if request.manual_release is not None:
+        positions = [t.position for t in request.manual_release.tracks]
+        if len(set(positions)) != len(positions):
+            raise HTTPException(status_code=422, detail="Each track needs its own position.")
+
     # Validate output format
     if request.output_format not in OUTPUT_FORMATS:
         raise HTTPException(
@@ -1375,6 +1468,15 @@ _PHASE_TO_UI_STEP = {
     "downloading_cover": "cover_art",
     "extracting": "splitting",
 }
+
+
+def _manual_release(manual: Optional[ManualRelease]):
+    if manual is None:
+        return None
+    return DiscogsRelease.manual(
+        manual.artist.strip(), manual.title.strip(), manual.year,
+        [(t.position, t.title.strip()) for t in manual.tracks],
+    )
 
 
 async def process_file_background(request: ProcessRequest):
@@ -1449,6 +1551,7 @@ async def process_file_background(request: ProcessRequest):
             audio_processor,
             metadata_handler,
             on_progress,
+            _manual_release(request.manual_release),
         )
     except Exception:
         # The Pipeline already emitted an "error" event and marked the
@@ -1523,6 +1626,7 @@ async def get_config():
         "flac_compression": audio_processor.flac_compression,
         "output_dir": config.default_output_dir,
         "track_numbering": config.track_numbering,
+        "playback_volume": config.playback_volume,
         "import_dir": str(_import_dir()) if _import_dir() else None,  # read-only
     }
 
@@ -1544,6 +1648,11 @@ async def update_config(updates: ConfigUpdate):
         if updates.track_numbering in TRACK_NUMBERING_SCHEMES:
             config.track_numbering = updates.track_numbering
             config.save_track_numbering(updates.track_numbering)
+    if updates.playback_volume is not None:
+        volume = config._clamp_volume(updates.playback_volume)
+        if volume != config.playback_volume:
+            config.playback_volume = volume
+            config.save_playback_volume(volume)
 
     return await get_config()
 

@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -8,7 +9,7 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 
 WINDOWS_ICON = 'assets/VinylFlow.ico' if sys.platform.startswith('win') else None
-FFMPEG_PATH = shutil.which('ffmpeg')
+FFMPEG_PATH = os.environ.get('VINYLFLOW_FFMPEG_PATH') or shutil.which('ffmpeg')
 
 if not FFMPEG_PATH:
     raise RuntimeError('ffmpeg was not found on PATH. Install ffmpeg before building.')
@@ -20,6 +21,9 @@ certifi_datas = collect_data_files('certifi')
 
 DATA_FILES = [
     ('backend/static', 'backend/static'),
+    ('LICENSE', '.'),
+    ('THIRD_PARTY_NOTICES.md', '.'),
+    ('licenses', 'licenses'),
     *certifi_datas,
 ]
 BINARIES = [(FFMPEG_PATH, 'ffmpeg_bin')]
@@ -67,7 +71,13 @@ if sys.platform.startswith('win'):
         pass
 
 elif sys.platform == 'darwin':
-    HIDDEN_IMPORTS.append('webview.platforms.cocoa')
+    HIDDEN_IMPORTS += ['webview.platforms.cocoa', 'sounddevice', 'AVFoundation']
+    # The wheel carries PortAudio in _sounddevice_data; it is loaded with CFFI.
+    # Collect explicitly so the standalone ARM64 app never needs Homebrew.
+    sd_datas, sd_bins, sd_imports = collect_all('_sounddevice_data')
+    DATA_FILES += sd_datas
+    BINARIES += sd_bins
+    HIDDEN_IMPORTS += sd_imports
 
 
 a = Analysis(
@@ -90,7 +100,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='VinylFlow',
+    name='FlipsideFlow',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -99,8 +109,8 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
+    codesign_identity=os.environ.get('VINYLFLOW_CODESIGN_IDENTITY'),
+    entitlements_file='assets/macos.entitlements' if sys.platform == 'darwin' else None,
     icon=WINDOWS_ICON,
 )
 coll = COLLECT(
@@ -128,11 +138,18 @@ coll = COLLECT(
         'Qt6Positioning.dll',
         'Qt6PrintSupport.dll',
     ],
-    name='VinylFlow',
+    name='FlipsideFlow',
 )
 app = BUNDLE(
     coll,
-    name='VinylFlow.app',
+    name='FlipsideFlow.app',
     icon='assets/VinylFlow.icns',
-    bundle_identifier=None,
+    bundle_identifier='app.flipsideflow.desktop',
+    info_plist={
+        'CFBundleShortVersionString': '0.1.0',
+        'CFBundleVersion': '1',
+        'LSMinimumSystemVersion': '14.0',
+        'NSMicrophoneUsageDescription': 'FlipsideFlow records vinyl audio from your selected USB audio interface.',
+        'NSHighResolutionCapable': True,
+    },
 )

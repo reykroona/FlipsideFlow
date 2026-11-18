@@ -19,7 +19,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 # audio_processor and metadata_handler live at the project root, not
 # under backend/.  api.py extends sys.path before importing them; do
@@ -30,7 +30,8 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from audio_processor import OUTPUT_FORMATS, AudioProcessor, Track
-from metadata_handler import MetadataHandler
+from library import write_manifest
+from metadata_handler import DiscogsRelease, MetadataHandler
 
 from .events import OutputSpec, ProcessingRun, ProgressEvent
 from .session import Session, SessionState
@@ -46,28 +47,32 @@ OVERWRITES_SOURCE = (
 def run(
     session: Session,
     spec: OutputSpec,
-    release_id: int,
+    release_id: Optional[int],
     audio_processor: AudioProcessor,
     metadata_handler: MetadataHandler,
     on_progress: ProgressCallback,
+    release: Optional[DiscogsRelease] = None,
 ) -> None:
+    """Export ``session``.  The release comes from Discogs (``release_id``) unless one
+    named by hand is passed as ``release``."""
     if not session.boundaries:
         raise ValueError("session.boundaries must be set before pipeline.run")
 
     run_record = ProcessingRun(started_at=datetime.now())
 
     try:
-        on_progress(
-            ProgressEvent(
-                phase="fetching_release",
-                fraction=0.2,
-                message="Fetching release metadata from Discogs...",
+        if release is None:
+            on_progress(
+                ProgressEvent(
+                    phase="fetching_release",
+                    fraction=0.2,
+                    message="Fetching release metadata from Discogs...",
+                )
             )
-        )
 
-        release = metadata_handler.get_release_by_id(release_id)
-        if not release:
-            raise RuntimeError("Failed to fetch Discogs release")
+            release = metadata_handler.get_release_by_id(release_id)
+            if not release:
+                raise RuntimeError("Failed to fetch Discogs release")
 
         session.link_release(release)
         session.mark_processing(run_record)
@@ -140,6 +145,7 @@ def run(
             output_files.append(final_path.name)
 
         session.mark_complete(album_folder, output_files)
+        write_manifest(album_folder, session.id, session.source_audio)
 
         on_progress(
             ProgressEvent(

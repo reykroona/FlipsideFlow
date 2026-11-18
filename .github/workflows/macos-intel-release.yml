@@ -42,22 +42,22 @@ jobs:
 
       - name: Build macOS app
         run: |
-          pyinstaller --clean -y VinylFlow.spec
+          pyinstaller --clean -y FlipsideFlow.spec
 
       - name: Verify architecture
         run: |
-          file dist/VinylFlow.app/Contents/MacOS/VinylFlow
-          file dist/VinylFlow.app/Contents/MacOS/VinylFlow | grep -q x86_64
+          file dist/FlipsideFlow.app/Contents/MacOS/FlipsideFlow
+          file dist/FlipsideFlow.app/Contents/MacOS/FlipsideFlow | grep -q x86_64
 
       - name: Package unsigned macOS Intel app
         run: |
-          rm -f VinylFlow-macos-intel-unsigned.zip
-          ditto -c -k --keepParent dist/VinylFlow.app VinylFlow-macos-intel-unsigned.zip
-          ls -la VinylFlow-macos-intel-unsigned.zip
+          rm -f FlipsideFlow-macos-intel-unsigned.zip
+          ditto -c -k --keepParent dist/FlipsideFlow.app FlipsideFlow-macos-intel-unsigned.zip
+          ls -la FlipsideFlow-macos-intel-unsigned.zip
 
       - name: Replace release asset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ inputs.tag }}" VinylFlow-macos-intel-unsigned.zip --clobber
+          gh release upload "${{ inputs.tag }}" FlipsideFlow-macos-intel-unsigned.zip --clobber
           gh release view "${{ inputs.tag }}" --json assets --jq '.assets[] | .name + " " + (.size|tostring)'

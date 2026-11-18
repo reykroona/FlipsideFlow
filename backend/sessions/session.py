@@ -54,6 +54,9 @@ class Session:
     release: Optional[Any] = None
     boundaries: list[Any] = field(default_factory=list)
     mappings: dict[int, str] = field(default_factory=dict)
+    # Exact pause/flip positions from desktop capture, in recorded seconds.
+    recording_side_markers: list[float] = field(default_factory=list)
+    recognition: Optional[dict] = None
     last_run: Optional[ProcessingRun] = None
 
     # Pinned on the first /api/audio request so the same URL never switches

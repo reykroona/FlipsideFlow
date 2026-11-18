@@ -1,4 +1,6 @@
-# VinylFlow — Claude Code Context
+# FlipsideFlow — Claude Code Context
+
+FlipsideFlow is a fork of VinylFlow (MIT; keep the original LICENSE notice). User-facing text says FlipsideFlow; internal identifiers keep the old name on purpose: `VINYLFLOW_*` environment variables, the `.vinylflow.json` export manifest, the Docker service, `rthooks/rthook_vinylflow.py` and the `assets/VinylFlow.*` icons. The desktop launcher keeps using existing `VinylFlow` app-data and `~/Music/VinylFlow` folders (`LEGACY_APP_NAME`); new installs get `FlipsideFlow` folders.
 
 ## Project Purpose
 Desktop app to digitize vinyl records: upload a WAV/AIFF recording of a vinyl side, detect track boundaries via silence analysis, search Discogs for metadata, and export split + tagged FLAC/MP3/AIFF files.
@@ -14,7 +16,7 @@ Desktop app to digitize vinyl records: upload a WAV/AIFF recording of a vinyl si
 | Desktop shell | pywebview (WKWebView on macOS, WebView2 on Windows) |
 | Audio processing | FFmpeg (via subprocess) + Mutagen (tagging) + Pillow (cover art) |
 | Discogs API | `discogs-client` Python library |
-| Bundling | PyInstaller (`VinylFlow.spec`) |
+| Bundling | PyInstaller (`FlipsideFlow.spec`) |
 | CI/CD | GitHub Actions (`.github/workflows/`) |
 
 ---
@@ -25,9 +27,12 @@ Desktop app to digitize vinyl records: upload a WAV/AIFF recording of a vinyl si
 vinylflow/
 ├── backend/
 │   ├── api.py              # FastAPI app — all REST endpoints + WebSocket
+│   ├── recording_api.py    # macOS capture + AudD recognition routes (/api/recording/*)
+│   ├── library_api.py      # Library routes (/api/library: albums, audio, cover, reveal)
 │   └── static/
-│       ├── index.html      # Single-page UI (Alpine.js)
-│       ├── app.js          # Main frontend logic (~1000+ lines)
+│       ├── index.html      # Single-page UI (Alpine.js): Record / Library / Workbench views
+│       ├── app.js          # Workbench logic: files, detection, editor, export
+│       ├── flow.js         # Record flow (Add → Record → Flip → Export), Library, bottom player; mixed into vinylApp()
 │       └── fonts/          # Mirano Extended font family
 ├── rthooks/
 │   └── rthook_vinylflow.py # PyInstaller runtime hook (runs before app code)
@@ -37,11 +42,13 @@ vinylflow/
 │   └── release-artifact-scan.yml
 ├── config.py               # Config management (settings.json > .env > env vars)
 ├── audio_processor.py      # Silence detection, track splitting, ffmpeg wrappers
+├── library.py              # Library scan of the output folder (tags, covers, ids), export manifests (.vinylflow.json)
+├── recording.py            # CoreAudio capture, crash-safe WAV, SideEndDetector (auto flip at run-out / needle drop)
 ├── import_folder.py        # Pure import-folder path logic: listing, name resolution (no traversal/symlink escape), overlap check
 ├── track_boundaries.py     # Pure track-boundary math (gaps, envelope, music span, guided placement, refine_cuts)
 ├── metadata_handler.py     # Discogs fetch, cover art download, audio tagging
 ├── desktop_launcher.py     # Entry point — sets up dirs/env vars, starts FastAPI, opens window
-├── VinylFlow.spec          # PyInstaller spec (macOS .app + Windows .exe)
+├── FlipsideFlow.spec         # PyInstaller spec (macOS .app + Windows .exe)
 ├── requirements.txt
 └── README.md
 ```
@@ -109,6 +116,17 @@ audio_processor.py  metadata_handler.py  config.py    Discogs API
 | WS | `/ws` | Real-time progress updates |
 
 ---
+
+## Record flow, Library, theme (Nov 2026)
+
+- **Views**: `view` is `record` (default when recording is enabled), `library` or `workbench` (the original page). Overlays (settings, setup, context menus, toasts) sit outside the views.
+- **flow.js** is merged into the app object by property descriptor (getters survive). app.js calls its hooks optionally: `initFlow`, `onRecordedFileAccepted(file)` (return true = handled), `onExportComplete(fileId, path)`, `pauseBar`.
+- **One player at a time**: the bottom bar (`$refs.barPlayer`), the track preview and the waveform stop each other; `setVolume` drives all three and saves `PLAYBACK_VOLUME` to settings.json (the pywebview window is private mode, so localStorage does not persist).
+- **Recorded flips** (`session.recording_side_markers`) are hard side breaks in `/api/analyze-guided` when their count equals `side_breaks`: each side is placed on its own envelope slice. A flip with no audio after it is dropped at stop.
+- **Auto flip**: `POST /api/recording/start {auto_flip, side_lengths}`. The writer thread feeds `SideEndDetector`; the watchdog/status call `_auto_step` to pause; a needle drop is saved sample-exactly by the writer (5 s pre-roll) before the state flips back to recording.
+- **Export without Discogs**: `POST /api/process {manual_release: {artist, title, year?, tracks: [{position, title}]}}` instead of `release_id`; `DiscogsRelease.manual()` builds the release (no id, cover, credits; no DISCOGS_RELEASE_ID tag).
+- **Library**: `GET /api/library` scans `DEFAULT_OUTPUT_DIR` (depth 3, skips the uploads and recordings folders and `temp_*`), tag cache by size+mtime; ids are hashes resolved only inside the current root. `/api/library/audio/{id}` serves the file (ranges) or `?mp3=1` a cached MP3. Each export writes `.vinylflow.json` with its source session (Re-split).
+- **Theme**: dark only. Every colour is a `--vf-*` token in index.html's `:root`; don't add hex colours to markup.
 
 ## Detection internals
 
@@ -187,7 +205,7 @@ Also: guard `@click.away` with `!$event.ctrlKey` so Ctrl+click (which triggers `
 | Mode | Command | Notes |
 |------|---------|-------|
 | Docker | `docker compose up` | Recommended for self-hosting. Published on `127.0.0.1` only; LAN access is opt-in via `BIND_ADDRESS=0.0.0.0` in `.env` (no auth, so trusted networks only) |
-| Desktop (bundled) | `VinylFlow.app` / `VinylFlow.exe` | PyInstaller build |
+| Desktop (bundled) | `FlipsideFlow.app` / `FlipsideFlow.exe` | PyInstaller build |
 | Local dev | `python desktop_launcher.py` | Opens browser or native window (binds 127.0.0.1) |
 | Backend only | `uvicorn backend.api:app --reload` | For API development; `python -m backend.api` binds `HOST` (default 127.0.0.1) |
 
@@ -212,7 +230,7 @@ Also: guard `@click.away` with `!$event.ctrlKey` so Ctrl+click (which triggers `
 | `audio_processor.py` | Hardcoded `"ffmpeg"` instead of `_ffmpeg()` | Use helper; use `encoding='utf-8', errors='replace'` |
 | `backend/static/app.js` | Right-click opened WKWebView native menu on macOS | Capture-phase `preventDefault` in `init()` |
 | `backend/static/app.js` | Ctrl+click dismissed custom context menu immediately | Guard `@click.away` with `!$event.ctrlKey` |
-| `VinylFlow.spec` | `ffmpeg.exe` UPX-packed → blocked by Windows Defender | Add to `upx_exclude` |
+| `FlipsideFlow.spec` | `ffmpeg.exe` UPX-packed → blocked by Windows Defender | Add to `upx_exclude` |
 
 ---
 

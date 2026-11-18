@@ -64,7 +64,7 @@ class TagSet:
     track_number: str
     year: Optional[int]
     label: Optional[str]
-    release_id: int
+    release_id: Optional[int]  # None for a release named by hand (no Discogs match)
     comment: str = "Digitized from vinyl"
     cover_data: Optional[bytes] = None
     disc_number: Optional[str] = None
@@ -182,6 +182,24 @@ class DiscogsRelease:
 
         # Parse tracklist
         self.tracks = self._parse_tracklist(getattr(release, "tracklist", []), debug=False)
+
+    @classmethod
+    def manual(cls, artist: str, title: str, year=None, tracks=()) -> "DiscogsRelease":
+        """A release typed in by the user when Discogs has no match: no id, cover or credits.
+
+        ``tracks`` is a sequence of ``(position, title)`` pairs, e.g. ``("A1", "Intro")``.
+        """
+        from types import SimpleNamespace
+        tracklist = [SimpleNamespace(position=pos, title=name, duration="", data={}) for pos, name in tracks]
+        release = cls(SimpleNamespace(
+            id=None, title=title, year=year or "", artists=[], labels=[], formats=[], images=[],
+            tracklist=tracklist, data={"genres": [], "extraartists": []},
+        ))
+        release.uri = ""
+        release.artist = artist
+        release.artist_names = (artist,)
+        release.various_artists = is_various(artist)
+        return release
 
     def _parse_tracklist(self, tracklist, debug=False) -> List[DiscogsTrack]:
         """Parse Discogs tracklist to DiscogsTrack objects."""
@@ -373,7 +391,7 @@ class MetadataHandler:
 
         return name
 
-    def search_basic(self, query: str, max_results: int = 5) -> List[dict]:
+    def search_basic(self, query: str, max_results: int = 5, *, filters: Optional[dict] = None) -> List[dict]:
         """
         Search Discogs with ONE request and build basic results from the raw
         search payloads (no per-release fetch).
@@ -391,7 +409,7 @@ class MetadataHandler:
             cover_url, uri, master_id)
         """
         self._rate_limit()
-        results = self.client.search(query, type="release")
+        results = self.client.search(query, type="release", **(filters or {}))
         # Page size goes on the list, not in the query: the library appends its own
         # per_page (default 50) to each page URL, so a per_page search field would
         # send Discogs two page sizes.
@@ -436,7 +454,7 @@ class MetadataHandler:
             return artist.strip(), title.strip()
         return "Unknown Artist", full.strip()
 
-    def get_release_by_id(self, release_id: int) -> Optional[DiscogsRelease]:
+    def get_release_by_id(self, release_id: int, *, raise_errors: bool = False) -> Optional[DiscogsRelease]:
         """
         Get release by Discogs ID (served from a bounded in-memory cache).
 
@@ -457,6 +475,8 @@ class MetadataHandler:
             self._rate_limit()
             release = DiscogsRelease(self.client.release(key))
         except Exception as e:
+            if raise_errors:
+                raise
             print(f"Failed to fetch release {release_id}: {e}")
             return None
 
@@ -732,7 +752,8 @@ class MetadataHandler:
             audio["DATE"] = str(tags.year)
         if tags.label:
             audio["LABEL"] = tags.label
-        audio["DISCOGS_RELEASE_ID"] = str(tags.release_id)
+        if tags.release_id:
+            audio["DISCOGS_RELEASE_ID"] = str(tags.release_id)
         audio["COMMENT"] = tags.comment
         if tags.cover_data:
             picture = Picture()
@@ -778,9 +799,10 @@ class MetadataHandler:
             audio.tags["TDRC"] = TDRC(encoding=3, text=str(tags.year))
         if tags.label:
             audio.tags["TPUB"] = TPUB(encoding=3, text=tags.label)
-        audio.tags["TXXX:DISCOGS_RELEASE_ID"] = TXXX(
-            encoding=3, desc="DISCOGS_RELEASE_ID", text=str(tags.release_id),
-        )
+        if tags.release_id:
+            audio.tags["TXXX:DISCOGS_RELEASE_ID"] = TXXX(
+                encoding=3, desc="DISCOGS_RELEASE_ID", text=str(tags.release_id),
+            )
         audio.tags["COMM"] = COMM(
             encoding=3, lang="eng", desc="", text=tags.comment,
         )

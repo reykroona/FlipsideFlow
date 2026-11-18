@@ -14,4 +14,7 @@ venv/
 .venv/
 output/
 config/settings.json
+config/recognition-token.json
 .gstack/
+build/
+dist/

@@ -1,9 +1,9 @@
 ---
 name: verify
-description: Build/launch/drive recipe for verifying VinylFlow changes end-to-end (FastAPI backend + Alpine.js frontend).
+description: Build/launch/drive recipe for verifying FlipsideFlow changes end-to-end (FastAPI backend + Alpine.js frontend).
 ---
 
-# Verifying VinylFlow
+# Verifying FlipsideFlow
 
 ## Launch (sandboxed — never pollutes real config/output)
 

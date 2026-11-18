@@ -491,8 +491,11 @@ const fullRelease = (id, tracks = [track('A1', '5:00'), track('A2', '6:00')]) =>
         return html.slice(start, html.indexOf('<!-- Waveform Visualization', start));
     }).join('\n');
     const expressions = [...blocks.matchAll(/\s(?:x-[\w:.-]+|@[\w:.-]+|:[\w-]+)="([^"]*)"/g)].map(m => m[1]);
-    // 'result', 'preset' and 'g' are x-for loop variables
-    const keywords = new Set(['true', 'false', 'null', 'undefined', 'Math', 'result', 'preset', 'g', 'event', '$event', 'this', 'x']);
+    const keywords = new Set(['true', 'false', 'null', 'undefined', 'Math', 'event', '$event', 'this', 'x']);
+    // x-for locals belong to their template, not the Alpine app object.
+    for (const match of blocks.matchAll(/x-for="(?:\(([^)]+)\)|([\w$]+))\s+in\s/g)) {
+        (match[1] || match[2]).split(',').forEach(name => keywords.add(name.trim()));
+    }
     const fresh = vinylApp();
     const unknown = new Set();
     for (const expression of expressions) {

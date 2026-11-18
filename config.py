@@ -1,5 +1,5 @@
 """
-VinylFlow - Configuration Management
+FlipsideFlow - Configuration Management
 
 Loads settings from .env file and provides configuration defaults.
 Handles Discogs API credentials, audio processing parameters, and output settings.
@@ -23,7 +23,7 @@ LEGACY_TRACK_NUMBERING = "vinyl"
 
 
 class Config:
-    """Configuration manager for VinylFlow."""
+    """Configuration manager for FlipsideFlow."""
 
     def __init__(self, env_path=None, settings_path=None):
         """
@@ -68,7 +68,7 @@ class Config:
         )
         self.discogs_user_agent = (
             json_settings.get('DISCOGS_USER_AGENT') or
-            os.getenv("DISCOGS_USER_AGENT", "VinylFlow/1.0")
+            os.getenv("DISCOGS_USER_AGENT", "FlipsideFlow/1.0")
         )
 
         # Output settings
@@ -96,6 +96,20 @@ class Config:
 
         # Track numbering scheme
         self.track_numbering = self._resolve_track_numbering(json_settings)
+
+        # Playback volume for the in-app player (0.0-1.0), remembered across launches:
+        # the desktop webview starts in private mode, so browser storage does not persist.
+        self.playback_volume = self._clamp_volume(json_settings.get('PLAYBACK_VOLUME', 1.0))
+
+    @staticmethod
+    def _clamp_volume(value) -> float:
+        try:
+            volume = float(value)
+        except (TypeError, ValueError):
+            return 1.0
+        if volume != volume:  # NaN
+            return 1.0
+        return min(1.0, max(0.0, volume))
 
     def _resolve_track_numbering(self, json_settings: dict) -> str:
         """The numbering scheme, keeping an older install on the scheme it was using.
@@ -214,6 +228,9 @@ class Config:
     def save_track_numbering(self, scheme: str) -> bool:
         return self._write_settings({'TRACK_NUMBERING': scheme})
 
+    def save_playback_volume(self, volume: float) -> bool:
+        return self._write_settings({'PLAYBACK_VOLUME': self._clamp_volume(volume)})
+
     def reload(self):
         """
         Reload configuration from all sources (settings.json, .env, environment).
@@ -247,12 +264,12 @@ def create_default_env_file(path=None):
     else:
         path = Path(path)
 
-    template = """# VinylFlow Configuration
+    template = """# FlipsideFlow Configuration
 
 # Discogs API Settings
 # Get your token from: https://www.discogs.com/settings/developers
 DISCOGS_USER_TOKEN=your_token_here
-DISCOGS_USER_AGENT=VinylFlow/1.0
+DISCOGS_USER_AGENT=FlipsideFlow/1.0
 
 # Output Settings
 DEFAULT_OUTPUT_DIR=/app/output

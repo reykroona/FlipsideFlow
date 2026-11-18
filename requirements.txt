@@ -13,6 +13,8 @@ python-multipart>=0.0.6
 websockets>=12.0
 aiofiles>=23.2.1
 pywebview>=5.1
+sounddevice>=0.5.1,<0.6; sys_platform == 'darwin'
+pyobjc-framework-AVFoundation>=10; sys_platform == 'darwin'
 
 # Qt fallback backend for Windows installs without WebView2 Runtime.
 # QtWebEngine ships with PySide6, so no separate QtWebEngine package needed.

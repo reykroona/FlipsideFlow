@@ -1,5 +1,5 @@
 /**
- * VinylFlow Frontend Application
+ * FlipsideFlow Frontend Application (based on VinylFlow)
  * Alpine.js application for managing vinyl digitization workflow
  */
 
@@ -21,7 +21,7 @@ const SIDE_FIT_TIE = 0.01;
 // Opaque #9C2418; contrast (WCAG): 7.4:1 on the card (#FAF9F6), 5.1:1 at worst on a 30 % region tint
 // over the card, and 3.3:1 at worst over a region tint on the waveform bars (#93C5FD), so 3:1 for
 // graphics holds everywhere. (#B02A1E gave only 2.8:1 over the pink and purple regions on the bars.)
-const EXPECTED_MARKER_COLOR = '#9C2418';
+const EXPECTED_MARKER_COLOR = '#FF6B5E';  // on the dark theme's graphite card
 
 // Keep WaveSurfer objects out of Alpine's reactive proxies. Through a proxy,
 // WaveSurfer's identity checks fail (a removed region compares proxy vs raw and
@@ -39,7 +39,7 @@ function newSearchCard(result) {
 }
 
 function vinylApp() {
-    return {
+    const app = {
         // WebSocket connection
         ws: null,
         wsPingTimer: null,
@@ -70,9 +70,32 @@ function vinylApp() {
         importLoading: false,           // GET /api/import in flight
         desktopPicker: false,           // the pywebview bridge offers a native file dialog
 
+        // macOS desktop recorder; the backend owns capture across UI reloads.
+        recordingEnabled: false,
+        recorder: { state: 'idle', levels: [-120, -120], clipping: [false, false], seconds: 0, side_markers: [] },
+        recordingDevices: [],
+        recordingInput: { device: '', device_name: '', left: 1, right: 2, rate: 48000 },
+        recordingTitle: '',
+        identifyAlbum: true,
+        recognitionTokenInput: '',
+        recognitionBusy: false,
+        recognitionNotice: '',
+        songRecognition: { configured: false, state: 'waiting', candidates: [], selected_release: null, song: null },
+        recognitionReleaseId: null,
+        recordingBusy: false,
+        recordingError: '',
+        savedRecordings: [],
+        recordingHistory: [],
+        _recordingTimer: null,
+        _recordingSeq: 0,
+        _recordingDisposed: false,
+
         // Analysis
         detectedTracks: [],
         currentPlayingTrack: null,
+        // One volume for every player in the app (track preview and waveform), saved in settings.json
+        playbackVolume: 1,
+        _volumeSaveTimer: null,
 
         // Waveform
         waveform: null,
@@ -169,7 +192,7 @@ function vinylApp() {
         setupLoading: false,
         setupError: null,
         setupToken: '',
-        setupUserAgent: 'VinylFlow/1.0',
+        setupUserAgent: 'FlipsideFlow/1.0',
 
         /**
          * Initialize the application
@@ -199,12 +222,296 @@ function vinylApp() {
             window.addEventListener('pywebviewready', () => this.detectDesktopPicker());
             await this.loadImportList();
             this.chooseDefaultImportTab();
+            await this.initRecording();
+            if (typeof this.initFlow === 'function') await this.initFlow();
 
             this.$watch('currentFile', (file) => {
                 if (file && !this.searchQuery) {
                     this.searchQuery = this.cleanFilename(file.filename);
                 }
             });
+            // A release named by hand has one name per detected track: follow splits and deletes.
+            this.$watch('detectedTracks.length', () => {
+                if (this.selectedRelease?.manual) this.syncManualTracks();
+            });
+        },
+
+        get isManualRelease() {
+            return !!this.selectedRelease?.manual;
+        },
+
+        /**
+         * No Discogs match (or no token): name the album and tracks by hand so the
+         * recording can still be exported.  Detects tracks by silence first if needed.
+         */
+        async nameItMyself() {
+            if (this.analyzing || this.currentFileExporting || !this.currentFile) return;
+            if (!this.detectedTracks.length) await this.analyzeFile();
+            if (!this.detectedTracks.length) return;
+            // "Artist - Album" or "Artist — Album" file and recording names give a head start.
+            const base = (this.currentFile.filename || '').replace(/\.(wav|aiff|aif)$/i, '').trim();
+            const parts = base.split(/\s+[-–—]\s+/);
+            const artist = parts.length > 1 ? parts[0] : '';
+            const title = parts.length > 1 ? parts.slice(1).join(' - ') : base;
+            this.searchSeq++;          // a Discogs search still running must not replace this
+            this.searchLoading = false;
+            this._pendingPickId = null;
+            this.recognitionReleaseId = null;
+            this.selectedRelease = { id: null, manual: true, artist, title, year: '', label: '', cover_url: null, tracks: [] };
+            this.selectedSides = ['A'];
+            this.syncManualTracks();
+            this.resetMappingToTargets();
+            this.trackCountMismatch = false;
+            this.editBanner = false;
+            this.clearExpectedMarkers();
+        },
+
+        /** Vinyl positions for typed-in tracks: a new side after each recorded flip, else all side A. */
+        manualPositions(tracks) {
+            const flips = (this.currentFile?.recording_side_markers || []).filter(t => t > 0).sort((a, b) => a - b);
+            const counts = {};
+            return tracks.map(track => {
+                const mid = (track.start + track.end) / 2;
+                const side = String.fromCharCode(65 + Math.min(25, flips.filter(t => t <= mid).length));
+                counts[side] = (counts[side] || 0) + 1;
+                return `${side}${counts[side]}`;
+            });
+        },
+
+        /** One name per detected track, keeping names already typed. */
+        syncManualTracks() {
+            const release = this.selectedRelease;
+            if (!release?.manual) return;
+            const names = release.tracks.map(t => t.title);
+            release.tracks = this.detectedTracks.map((_, i) => ({
+                position: `A${i + 1}`, title: names[i] ?? '', duration: ''
+            }));
+            this.customMapping = this.detectedTracks.map((_, i) => i);
+        },
+
+        get recordingActive() {
+            return ['recording', 'paused'].includes(this.recorder.state);
+        },
+
+        get recordingInputLocked() {
+            return this.recordingBusy || this.recordingActive || this.recorder.state === 'monitoring';
+        },
+
+        get recordingChannels() {
+            const device = this.recordingDevices.find(d => d.id === Number(this.recordingInput.device));
+            return Array.from({ length: device?.channels || 2 }, (_, i) => i + 1);
+        },
+
+        /** The user picked another input device: use the channels last used with it, else 1 and 2. */
+        recordingDeviceChanged() {
+            const device = this.recordingDevices.find(d => d.id === Number(this.recordingInput.device));
+            this.recordingInput.device_name = device?.name || '';
+            this.applyRememberedInput(device);
+        },
+
+        /** Channels and rate saved by the backend the last time this device opened (or defaults). */
+        applyRememberedInput(device) {
+            const saved = this.recorder.last_input;
+            const remembered = device && saved && saved.device_name === device.name ? saved : null;
+            const channels = device?.channels || 2;
+            const ok = c => Number.isInteger(c) && c >= 1 && c <= channels;
+            if (remembered && ok(remembered.left) && ok(remembered.right) && remembered.left !== remembered.right) {
+                this.recordingInput.left = remembered.left;
+                this.recordingInput.right = remembered.right;
+            } else {
+                this.recordingInput.left = 1;
+                this.recordingInput.right = 2;
+            }
+            if (remembered && [44100, 48000, 96000].includes(remembered.rate)) this.recordingInput.rate = remembered.rate;
+        },
+
+        recordingMeterWidth(db) {
+            return Math.max(0, Math.min(100, (db + 60) / 60 * 100));
+        },
+
+        async recordingRequest(path, body) {
+            const options = body === undefined ? {} : {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            };
+            const response = await fetch('/api/recording/' + path, options);
+            const data = await response.json();
+            if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Recording request failed (${response.status})`);
+            return data;
+        },
+
+        async initRecording() {
+            await this.pollRecording();
+            if (!this.recordingEnabled) return;
+            if (this.recordingActive) this.importTab = 'record';
+            await this.refreshRecordingDevices();
+            await this.loadSavedRecordings();
+        },
+
+        async refreshRecordingDevices() {
+            if (this.recordingBusy) return;
+            try {
+                const data = await this.recordingRequest('devices');
+                this.recordingDevices = data.devices || [];
+                if (this.recordingInputLocked) return;
+                const wanted = this.recordingInput.device_name || this.recorder.last_input?.device_name;
+                const selected = this.recordingDevices.find(d => d.name === wanted)
+                    || this.recordingDevices.find(d => /scarlett/i.test(d.name)) || this.recordingDevices[0];
+                const sameDevice = !!selected && selected.name === this.recordingInput.device_name;
+                this.recordingInput.device = selected?.id ?? '';
+                this.recordingInput.device_name = selected?.name || '';
+                // A refresh keeps the channels already chosen; only a different device resets them.
+                if (!sameDevice || !this.recordingChannels.includes(this.recordingInput.left)
+                    || !this.recordingChannels.includes(this.recordingInput.right)) {
+                    this.applyRememberedInput(selected);
+                }
+                this.recordingError = selected ? '' : 'No stereo CoreAudio input found. Connect your Scarlett and refresh inputs.';
+            } catch (error) {
+                this.recordingError = error.message;
+            }
+        },
+
+        async loadSavedRecordings() {
+            try {
+                const data = await this.recordingRequest('saved');
+                this.savedRecordings = data.recordings || [];
+            } catch (error) {
+                this.recordingError = error.message;
+            }
+        },
+
+        async pollRecording() {
+            const seq = this._recordingSeq;
+            try {
+                if (this.recordingBusy) return;
+                const data = await this.recordingRequest('status');
+                if (seq !== this._recordingSeq || this._recordingDisposed) return;
+                this.recordingEnabled = !!data.enabled;
+                if (!data.enabled) return;
+                const previous = this.recorder.state;
+                this.recorder = data;
+                this.syncRecognition(data.recognition);
+                if (data.settings && ['recording', 'paused', 'monitoring'].includes(data.state)) this.recordingInput = { ...data.settings };
+                if (data.error) this.recordingError = data.error;
+                const peak = Math.max(...data.levels);
+                this.recordingHistory = [...this.recordingHistory.slice(-79), this.recordingMeterWidth(peak)];
+                if (previous !== data.state && ['error', 'finished'].includes(data.state)) await this.loadSavedRecordings();
+            } catch (error) {
+                if (seq === this._recordingSeq && this.recordingEnabled) {
+                    this.recordingError = 'Connection lost. Recording may still be running on this Mac; reconnect to check its status.';
+                }
+            } finally {
+                if (this.recordingEnabled && !this._recordingDisposed) {
+                    clearTimeout(this._recordingTimer);
+                    this._recordingTimer = setTimeout(() => this.pollRecording(),
+                        ['recording', 'paused', 'monitoring'].includes(this.recorder.state) ? 250 : 2000);
+                }
+            }
+        },
+
+        async recordingAction(action, payload = {}) {
+            if (this.recordingBusy) return;
+            this.recordingBusy = true;
+            this._recordingSeq++; // discard status responses started before this action
+            this.recordingError = '';
+            try {
+                const data = await this.recordingRequest(action, payload);
+                this.recorder = data;
+                this.syncRecognition(data.recognition);
+                this.recordingError = data.error || '';
+                if (data.file) this.acceptRecordedFile(data.file);
+                if (action === 'stop') await this.loadSavedRecordings();
+            } catch (error) {
+                this.recordingError = error.message;
+            } finally {
+                this.recordingBusy = false;
+            }
+        },
+
+        acceptRecordedFile(file) {
+            if (!this.uploadedFiles.some(f => f.id === file.id)) this.uploadedFiles.push({ ...file, status: file.status || 'uploaded' });
+            this.selectFile(file.id);
+            if (typeof this.onRecordedFileAccepted === 'function' && this.onRecordedFileAccepted(file)) return;
+            this.applyRecognitionToCurrentFile();
+            this.notify('Recording saved. Review the tracks below, then export.', { type: 'success' });
+        },
+
+        syncRecognition(data) {
+            if (!data) return;
+            if (!data.recording_id || !this.recorder.id || data.recording_id === this.recorder.id) this.songRecognition = data;
+            const file = this.uploadedFiles.find(f => f.id === data.recording_id);
+            if (file) {
+                file.recognition = data;
+                if (this.currentFileId === file.id) this.applyRecognitionToCurrentFile();
+            }
+        },
+
+        applyRecognitionToCurrentFile() {
+            const file = this.currentFile;
+            const release = file?.recognition?.selected_release;
+            if (!release || !Array.isArray(release.tracks) || file.recognitionApplied) return false;
+            if (this.selectedRelease || this.boundariesEdited || this.detectedTracks.length) {
+                file.recognitionApplied = true; // explicit choices/edits always win over late matches
+                return false;
+            }
+            if (this.analyzing || this.currentFileExporting) return false;
+            file.recognitionApplied = true;
+            this.searchSeq++;
+            this.searchLoading = false;
+            this.selectRelease(release, { automatic: true });
+            return true;
+        },
+
+        async recognitionAction(action, payload = {}) {
+            if (this.recognitionBusy) return;
+            if (action === 'select' && this.currentFileId === payload.recording_id && (this.analyzing || this.currentFileExporting)) {
+                this.recognitionNotice = 'Wait for analysis or export to finish before changing the album.';
+                return;
+            }
+            this.recognitionBusy = true;
+            this.recognitionNotice = '';
+            try {
+                const data = await this.recordingRequest(`recognition/${action}`, payload);
+                this._recordingSeq++; // discard a status read that predates this choice/token update
+                if (action === 'token') {
+                    this.recognitionTokenInput = '';
+                    this.songRecognition.configured = data.configured;
+                    this.recognitionNotice = data.configured ? 'Token saved locally. It will be checked on the next lookup.' : 'Token removed.';
+                } else {
+                    const explicitPick = action === 'select' && this.currentFileId === data.recording_id;
+                    if (explicitPick && this.currentFile) this.currentFile.recognitionApplied = true;
+                    this.syncRecognition(data);
+                    if (explicitPick) {
+                        if (data.selected_release) this.selectRelease(data.selected_release, { automatic: true });
+                        else if (this.recognitionReleaseId !== null) {
+                            this.changeRelease();
+                            this.recognitionReleaseId = null;
+                        }
+                    }
+                }
+            } catch (error) {
+                this.recognitionNotice = error.message;
+            } finally {
+                this.recognitionBusy = false;
+            }
+        },
+
+        async openRecordedFile(id) {
+            if (this.recordingBusy || this.recordingActive) return;
+            this.recordingBusy = true;
+            try {
+                const data = await this.recordingRequest(`saved/${encodeURIComponent(id)}/open`, {});
+                this.acceptRecordedFile(data.file);
+                await this.loadSavedRecordings();
+            } catch (error) {
+                this.recordingError = error.message;
+            } finally {
+                this.recordingBusy = false;
+            }
+        },
+
+        destroy() {
+            this._recordingDisposed = true;
+            clearTimeout(this._recordingTimer);
         },
 
         /**
@@ -303,13 +610,14 @@ function vinylApp() {
                         this.processingProgress = 1.0;
                         this.processingMessage = 'Complete!';
                         this.isProcessing = false;
-                        this.successMessage = `✅ ${data.tracks.length} tracks saved to your VinylFlow/output folder\n\nTracks: ${data.tracks.join(', ')}`;
+                        this.successMessage = `✅ ${data.tracks.length} tracks saved to ${data.output_path || 'your output folder'}\n\nTracks: ${data.tracks.join(', ')}`;
 
                         const file = this.uploadedFiles.find(f => f.id === data.file_id);
                         if (file) {
                             file.status = 'completed';
                             if (file.in_place) this.loadImportList();
                         }
+                        this.onExportComplete?.(data.file_id, data.output_path);
                     }
                     break;
 
@@ -342,6 +650,7 @@ function vinylApp() {
                 const response = await fetch('/api/config');
                 const data = await response.json();
                 this.config = data;
+                if (typeof data.playback_volume === 'number') this.setVolume(data.playback_volume, { save: false });
             } catch (error) {
                 console.error('Failed to load config:', error);
             }
@@ -913,6 +1222,7 @@ function vinylApp() {
         clearEditState() {
             this.detectedTracks = [];
             this.selectedRelease = null;
+            this.recognitionReleaseId = null;
             this.trackCountMismatch = false;
             this.trackMappingReversed = false;
             this.customMapping = [];
@@ -976,7 +1286,10 @@ function vinylApp() {
             this.destroyWaveform();
 
             if (this.currentFile) {
-                this.searchQuery = this.cleanFilename(this.currentFile.filename);
+                this.currentFile.recognitionApplied = false;
+                const song = this.currentFile.recognition?.song;
+                this.searchQuery = song ? `${song.artist} ${song.album || song.title}` : this.cleanFilename(this.currentFile.filename);
+                if (this.applyRecognitionToCurrentFile()) return;
                 // Discogs first: start looking right away (not awaited, the UI stays usable).
                 // Without a token there is nothing to search; "Skip Discogs" still works.
                 if (this.discogsConfigured && this.searchQuery.trim()) this.searchDiscogs();
@@ -1443,7 +1756,7 @@ function vinylApp() {
          * many tracks with guided detection (or asks first when boundaries were edited
          * by hand, see afterTargetsChanged).
          */
-        selectRelease(release) {
+        selectRelease(release, { automatic = false, sides = null } = {}) {
             if (!Array.isArray(release?.tracks)) return;
             this._pendingPickId = null;   // this pick replaces any card still loading, even when refused below
             if (this.currentFileExporting) {
@@ -1455,10 +1768,13 @@ function vinylApp() {
                 return;
             }
             this.selectedRelease = release;
-            const suggestion = this.suggestSides(
-                release,
-                this.currentFile?.musicDuration || this.currentFile?.duration
-            );
+            this.recognitionReleaseId = automatic ? release.id : null;
+            const keys = this.releaseSides(release).map(g => g.side);
+            const chosen = Array.isArray(sides) ? keys.filter(k => sides.includes(k)) : [];
+            // The record flow knows which sides were recorded (one per side flip); otherwise guess by length.
+            const suggestion = chosen.length
+                ? { sides: chosen, reason: 'recorded' }
+                : this.suggestSides(release, this.currentFile?.musicDuration || this.currentFile?.duration);
             this.selectedSides = suggestion.sides;
             this.suggestedSides = suggestion.sides;
             this.sidesSuggestionReason = suggestion.reason;
@@ -1809,6 +2125,7 @@ function vinylApp() {
          * With tracks present it stays up during a Smart Rescan, whose spinner lives in it.
          */
         get showTrackCountMismatch() {
+            if (this.isManualRelease) return false;   // one typed name per detected track: nothing to mismatch
             return this.trackCountMismatch && (this.detectedTracks.length > 0 || !this.analyzing);
         },
 
@@ -2188,8 +2505,12 @@ function vinylApp() {
                 previewUrl += `?start=${track.start}&end=${track.end}`;
             }
 
+            // Only one thing plays at a time: the waveform, the track preview and the library player.
+            this.stopWaveform();
+            this.pauseBar?.();
             audioPlayer.src = previewUrl;
             audioPlayer.load();
+            audioPlayer.volume = this.playbackVolume;
             audioPlayer.play().catch(err => {
                 // AbortError: a newer Play/Stop click interrupted this one
                 // before it started. Not a real failure.
@@ -2206,6 +2527,7 @@ function vinylApp() {
          */
         stopPreview() {
             const audioPlayer = this.$refs.audioPlayer;
+            if (!audioPlayer) return;
             audioPlayer.pause();
             audioPlayer.currentTime = 0;
             this.currentPlayingTrack = null;
@@ -2272,9 +2594,9 @@ function vinylApp() {
                 // waveform forever on fractional-DPI Windows displays (#63).
                 this.waveform = markRaw(WaveSurfer.create({
                     container: '#waveform',
-                    waveColor: '#93c5fd',
-                    progressColor: '#93c5fd',
-                    cursorColor: '#1e40af',
+                    waveColor: '#7FA7C9',
+                    progressColor: '#F0B323',
+                    cursorColor: '#F0B323',
                     height: 'auto',
                     normalize: true,
                     barWidth: 2,
@@ -2298,6 +2620,13 @@ function vinylApp() {
                     throw new Error(data.detail || 'Failed to load waveform peaks');
                 }
                 const peaksData = await peaksResponse.json();
+
+                this.waveform.setVolume(this.playbackVolume);
+                // The waveform can also start from a click on it: stop the track preview then too.
+                this.waveform.on('play', () => {
+                    if (this.currentPlayingTrack) this.stopPreview();
+                    this.pauseBar?.();
+                });
 
                 this.waveform.on('ready', () => {
                     console.log('Waveform ready');
@@ -2432,6 +2761,19 @@ function vinylApp() {
             });
 
             this.addExpectedMarkers(totalDuration);
+            this.addRecordingMarkers(totalDuration);
+        },
+
+        addRecordingMarkers(totalDuration) {
+            if (!this.waveformRegions) return;
+            (this.currentFile?.recording_side_markers || []).forEach((time, i) => {
+                if (!(time > 0 && time < totalDuration)) return;
+                const marker = this.waveformRegions.addRegion({
+                    id: `recorded-flip-${i + 1}`, start: time, content: `Side flip ${i + 1}`,
+                    color: '#3DDC84', drag: false, resize: false
+                });
+                if (marker?.element?.style) marker.element.style.pointerEvents = 'none';
+            });
         },
 
         /**
@@ -2706,7 +3048,38 @@ function vinylApp() {
         },
 
         playWaveform() {
-            if (this.waveform) this.waveform.play();
+            if (!this.waveform) return;
+            if (this.currentPlayingTrack) this.stopPreview();
+            this.pauseBar?.();
+            this.waveform.setVolume(this.playbackVolume);
+            this.waveform.play();
+        },
+
+        /**
+         * Set the one app-wide playback volume (0-1).  Applies to the track preview and
+         * the waveform player; saved to settings.json shortly after the last change.
+         */
+        setVolume(value, { save = true } = {}) {
+            const volume = Number(value);
+            if (!Number.isFinite(volume)) return;
+            this.playbackVolume = Math.min(1, Math.max(0, volume));
+            const player = this.$refs.audioPlayer;
+            // Only write when different: the preview's own slider fires volumechange back into here.
+            if (player && Math.abs(player.volume - this.playbackVolume) > 0.001) player.volume = this.playbackVolume;
+            if (this.waveform) this.waveform.setVolume(this.playbackVolume);
+            const bar = this.$refs.barPlayer;
+            if (bar && Math.abs(bar.volume - this.playbackVolume) > 0.001) bar.volume = this.playbackVolume;
+            if (!save) return;
+            clearTimeout(this._volumeSaveTimer);
+            this._volumeSaveTimer = setTimeout(() => {
+                fetch('/api/config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playback_volume: this.playbackVolume })
+                }).then(r => r.ok && r.json()).then(data => {
+                    if (data) this.config.playback_volume = data.playback_volume;
+                }).catch(() => { /* volume still works for this session */ });
+            }, 400);
         },
 
         stopWaveform() {
@@ -2748,7 +3121,30 @@ function vinylApp() {
                 return;
             }
 
+            let manualRelease = null;
+            if (this.isManualRelease) {
+                const release = this.selectedRelease;
+                if (!release.artist.trim() || !release.title.trim()) {
+                    this.notify('Type the artist and album name before exporting.', { type: 'warning', timeout: 6000 });
+                    return;
+                }
+                const year = parseInt(release.year, 10);
+                // Exported tracks are numbered in order; an ignored track leaves no gap.  Side flips
+                // pressed while recording give the sides (A1, A2, B1…), so LPs get disc numbers.
+                const positions = this.manualPositions(activeTracks);
+                manualRelease = {
+                    artist: release.artist.trim(),
+                    title: release.title.trim(),
+                    year: year >= 1000 && year <= 9999 ? year : null,
+                    tracks: activeTracks.map((track, i) => ({
+                        position: positions[i],
+                        title: (release.tracks[this.detectedTracks.indexOf(track)]?.title || '').trim() || `Track ${i + 1}`
+                    }))
+                };
+            }
+
             const trackMapping = activeTracks.map((track, idx) => {
+                if (manualRelease) return { detected: track.number, discogs: manualRelease.tracks[idx].position };
                 const originalIdx = this.detectedTracks.indexOf(track);
                 const discogsIdx = this.customMapping[originalIdx];
                 const discogsTrack = this.selectedRelease.tracks[discogsIdx];
@@ -2781,7 +3177,8 @@ function vinylApp() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         file_id: this.currentFileId,
-                        release_id: this.selectedRelease.id,
+                        release_id: manualRelease ? null : this.selectedRelease.id,
+                        manual_release: manualRelease,
                         track_mapping: trackMapping,
                         reversed: this.trackMappingReversed,
                         track_boundaries: trackBoundaries,
@@ -2838,10 +3235,11 @@ function vinylApp() {
                         this.isProcessing = false;
 
                         const tracks = Array.isArray(job.tracks) ? job.tracks : [];
+                        const where = job.output_path || job.output_folder || 'your output folder';
                         if (tracks.length > 0) {
-                            this.successMessage = `✅ ${tracks.length} tracks saved to your VinylFlow/output folder\n\nTracks: ${tracks.join(', ')}`;
+                            this.successMessage = `✅ ${tracks.length} tracks saved to ${where}\n\nTracks: ${tracks.join(', ')}`;
                         } else {
-                            this.successMessage = '✅ Processing complete. Files saved to your VinylFlow/output folder.';
+                            this.successMessage = `✅ Processing complete. Files saved to ${where}.`;
                         }
 
                         const file = this.uploadedFiles.find(f => f.id === job.file_id);
@@ -2849,6 +3247,7 @@ function vinylApp() {
                             file.status = 'completed';
                             if (file.in_place) this.loadImportList();
                         }
+                        this.onExportComplete?.(job.file_id, job.output_path || job.output_folder);
                         return;
                     }
 
@@ -2943,4 +3342,10 @@ function vinylApp() {
             }
         }
     };
+    // The guided Record flow, the Library and the bottom player live in flow.js. Merged by
+    // descriptor so its getters stay getters (an object spread would freeze them).
+    if (typeof vinylFlowMixin === 'function') {
+        Object.defineProperties(app, Object.getOwnPropertyDescriptors(vinylFlowMixin()));
+    }
+    return app;
 }

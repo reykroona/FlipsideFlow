@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-VinylFlow Desktop Launcher
+FlipsideFlow Desktop Launcher (based on VinylFlow)
 
-Runs VinylFlow in a no-Docker local desktop mode:
+Runs FlipsideFlow in a no-Docker local desktop mode:
 - Uses writable user directories for config/temp/output
 - Starts the FastAPI backend locally
 - Opens a native desktop app window (WebView2 on Windows, WKWebView on macOS)
@@ -40,7 +40,16 @@ except Exception as exc:
     _WEBVIEW_IMPORT_ERROR = exc
 
 
-APP_NAME = "VinylFlow"
+APP_NAME = "FlipsideFlow"
+# The app was called VinylFlow before.  An install that already has VinylFlow folders keeps
+# using them (settings, recordings and the library stay where they are); new installs get
+# FlipsideFlow folders.
+LEGACY_APP_NAME = "VinylFlow"
+
+
+def _prefer_existing(new: Path, legacy: Path) -> Path:
+    """The legacy folder when only it exists, else the new one."""
+    return legacy if legacy.exists() and not new.exists() else new
 
 
 class DesktopApi:
@@ -91,15 +100,23 @@ class DesktopApi:
             return []
 
 
-def _macos_app_support_dir() -> Path:
-    return Path.home() / "Library" / "Application Support" / APP_NAME
+def _macos_app_support_dir(name: str = APP_NAME) -> Path:
+    return Path.home() / "Library" / "Application Support" / name
 
 
-def _windows_app_support_dir() -> Path:
+def _windows_app_support_dir(name: str = APP_NAME) -> Path:
     appdata = os.environ.get("APPDATA")
     if appdata:
-        return Path(appdata) / APP_NAME
-    return Path.home() / "AppData" / "Roaming" / APP_NAME
+        return Path(appdata) / name
+    return Path.home() / "AppData" / "Roaming" / name
+
+
+def _app_data_dir(name: str) -> Path:
+    if sys.platform.startswith("win"):
+        return _windows_app_support_dir(name)
+    if sys.platform == "darwin":
+        return _macos_app_support_dir(name)
+    return Path.home() / ".config" / name
 
 
 def _bundled_ffmpeg_path() -> Path | None:
@@ -178,21 +195,16 @@ def _resolve_gui_backend() -> tuple[str | None, bool]:
 
 
 def configure_desktop_environment() -> tuple[str, int]:
-    if sys.platform.startswith("win"):
-        app_data_dir = _windows_app_support_dir()
-    elif sys.platform == "darwin":
-        app_data_dir = _macos_app_support_dir()
-    else:
-        app_data_dir = Path.home() / ".config" / APP_NAME
+    app_data_dir = _prefer_existing(_app_data_dir(APP_NAME), _app_data_dir(LEGACY_APP_NAME))
 
     config_dir = app_data_dir / "config"
     upload_dir = app_data_dir / "temp_uploads"
-    output_dir = Path.home() / "Music" / APP_NAME
+    output_dir = _prefer_existing(Path.home() / "Music" / APP_NAME, Path.home() / "Music" / LEGACY_APP_NAME)
 
     config_dir.mkdir(parents=True, exist_ok=True)
     upload_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
-    import_dir = Path.home() / "Music" / APP_NAME / "Incoming"
+    import_dir = output_dir / "Incoming"
     import_dir.mkdir(parents=True, exist_ok=True)
 
     os.environ.setdefault("VINYLFLOW_CONFIG_DIR", str(config_dir))
@@ -202,6 +214,11 @@ def configure_desktop_environment() -> tuple[str, int]:
     os.environ.setdefault("HOST", "127.0.0.1")
     os.environ.setdefault("PORT", "8000")
     os.environ.setdefault("AUTO_OPEN_BROWSER", "0")
+
+    if sys.platform == "darwin":
+        from backend.recording_api import enable_recording
+        recording_dir = Path(os.environ.get("VINYLFLOW_RECORDING_DIR", str(output_dir / "Recordings"))).expanduser()
+        enable_recording(recording_dir, Path(os.environ["VINYLFLOW_UPLOAD_DIR"]))
 
     bundled_ffmpeg = _bundled_ffmpeg_path()
     if bundled_ffmpeg:
@@ -251,14 +268,14 @@ def main() -> None:
     server_thread.start()
 
     if not _wait_for_server(host, port):
-        raise RuntimeError(f"VinylFlow backend failed to start on http://{host}:{port}")
+        raise RuntimeError(f"FlipsideFlow backend failed to start on http://{host}:{port}")
 
     app_url = f"http://{host}:{port}"
 
     # --- webview not importable at all ---
     if webview is None:
         print(
-            f"[VinylFlow] pywebview unavailable ({_WEBVIEW_IMPORT_ERROR}). "
+            f"[FlipsideFlow] pywebview unavailable ({_WEBVIEW_IMPORT_ERROR}). "
             "Opening in default browser.",
             file=sys.stderr,
         )
@@ -268,7 +285,7 @@ def main() -> None:
     gui, has_backend = _resolve_gui_backend()
     if not has_backend:
         print(
-            "[VinylFlow] No native webview backend found.\n"
+            "[FlipsideFlow] No native webview backend found.\n"
             "  Install Microsoft WebView2 Runtime: https://developer.microsoft.com/microsoft-edge/webview2/\n"
             "  Opening in default browser as fallback.",
             file=sys.stderr,
@@ -278,31 +295,43 @@ def main() -> None:
 
     if gui == "qt":
         print(
-            "[VinylFlow] WebView2 Runtime not found — using bundled Qt backend.",
+            "[FlipsideFlow] WebView2 Runtime not found — using bundled Qt backend.",
             file=sys.stderr,
         )
 
     # --- Try native desktop window ---
     try:
-        webview.create_window(
-            "VinylFlow",
+        window = webview.create_window(
+            APP_NAME,
             app_url,
             width=1280,
             height=900,
             min_size=(900, 700),
             js_api=DesktopApi(),
         )
+        def on_closing():
+            from backend.recording_api import recorder, shutdown_recording
+            if recorder is not None and recorder.status()["state"] in {"recording", "paused"}:
+                if not window.create_confirmation_dialog("Recording in progress", "Stop and save this recording before closing FlipsideFlow?"):
+                    return False
+            shutdown_recording()
+            return True
+        window.events.closing += on_closing
         if gui:
             webview.start(gui=gui)
         else:
             webview.start()
     except Exception as exc:
         print(
-            f"[VinylFlow] Native window failed ({exc}). Opening in default browser.",
+            f"[FlipsideFlow] Native window failed ({exc}). Opening in default browser.",
             file=sys.stderr,
         )
         _open_browser_fallback(app_url, server_thread)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        from backend.recording_api import shutdown_recording
+        shutdown_recording()
