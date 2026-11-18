@@ -8,7 +8,7 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 
-WINDOWS_ICON = 'assets/VinylFlow.ico' if sys.platform.startswith('win') else None
+WINDOWS_ICON = 'assets/FlipsideFlow.ico' if sys.platform.startswith('win') else None
 FFMPEG_PATH = os.environ.get('VINYLFLOW_FFMPEG_PATH') or shutil.which('ffmpeg')
 
 if not FFMPEG_PATH:
@@ -143,11 +143,11 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='FlipsideFlow.app',
-    icon='assets/VinylFlow.icns',
+    icon='assets/FlipsideFlow.icns',
     bundle_identifier='app.flipsideflow.desktop',
     info_plist={
         'CFBundleShortVersionString': '0.1.0',
-        'CFBundleVersion': '1',
+        'CFBundleVersion': '2',
         'LSMinimumSystemVersion': '14.0',
         'NSMicrophoneUsageDescription': 'FlipsideFlow records vinyl audio from your selected USB audio interface.',
         'NSHighResolutionCapable': True,

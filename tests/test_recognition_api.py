@@ -1,11 +1,13 @@
 import json
 import threading
+import io
+import wave
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend import api, recording_api
-from recognition import RecognitionService, RecognitionToken
+from recognition import RecognitionService, RecognitionToken, choose_excerpt as real_choose_excerpt
 from tests.test_recording import emit
 from tests.test_recording_api import env
 from tests.test_recognition import FakeProvider, FakeResolver, SONG
@@ -96,3 +98,39 @@ def test_stop_and_pause_do_not_wait_for_network_lookup(recognition_env):
     choice = client.post('/api/recording/recognition/select', json={'recording_id': ident, 'release_id': None})
     assert choice.status_code == 200 and choice.json()['selected_release'] is None
     assert client.post('/api/recording/recognition/select', json={'recording_id': ident, 'release_id': 999}).status_code == 409
+
+
+def test_identifies_actual_growing_wav_at_two_minutes_without_stopping(recognition_env, tmp_path, monkeypatch):
+    from tests.test_recognition import pcm_file
+    from recording import HEADER_BYTES
+    rec, client, svc, provider, token = recognition_env
+    # Exercise real excerpt extraction from the open capture file, not a sampler stub.
+    monkeypatch.setattr('recognition.choose_excerpt', real_choose_excerpt)
+    fixture = pcm_file(tmp_path, rate=48000, seconds=1)
+    pcm = fixture['path'].read_bytes()[HEADER_BYTES:]
+    ident = start(client, identify_album=True, auto_flip=False)
+    for _ in range(119):
+        emit(rec, pcm)
+    svc.tick()
+    assert provider.calls == 0
+    def recognize(clip, cancel):
+        assert rec.status()['state'] == 'recording'
+        with wave.open(io.BytesIO(clip)) as audio:
+            assert audio.getnframes() == 48000 * 10
+            assert audio.getnchannels() == 1 and audio.getsampwidth() == 2
+        provider.calls += 1
+        return SONG
+    provider.recognize = recognize
+    emit(rec, pcm)
+    svc.tick()
+    live = client.get('/api/recording/status').json()
+    assert live['state'] == 'recording' and live['seconds'] == 120
+    assert live['recognition']['selected_release'], live['recognition']
+    assert live['recognition']['selected_release']['id'] == 1
+    assert api.session_store.get(ident) is None  # growing source never enters the editor
+    emit(rec, pcm)
+    assert client.get('/api/recording/status').json()['seconds'] == 121
+    result = client.post('/api/recording/stop').json()
+    assert result['file']['recognition']['selected_release']['id'] == 1
+    assert provider.calls == 1
+    assert (rec.root / ident / 'audio.wav').read_bytes()[HEADER_BYTES:] == pcm * 121

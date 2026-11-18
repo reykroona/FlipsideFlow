@@ -15,7 +15,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Use FlipsideFlow
 
-- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.1/FlipsideFlow-0.1.0-beta.1-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
+- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.2/FlipsideFlow-0.1.0-beta.2-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
 - 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
 - ⚙️ **Python local mode:** see [Manual Setup (Non-Docker)](#manual-setup-non-docker)
 
@@ -130,7 +130,7 @@ When you open FlipsideFlow for the first time, you'll see a welcome screen that 
 
 The downloadable beta is for **Apple Silicon Macs (M1 or newer) running macOS 14 Sonoma or later**. Windows and Intel Mac packaging recipes are included in the source, but this release supplies only an ARM64 Mac app.
 
-1. Download `FlipsideFlow-0.1.0-beta.1-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
+1. Download `FlipsideFlow-0.1.0-beta.2-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
 2. Unzip it and drag **FlipsideFlow.app** to **Applications**. Quit an older running copy before opening the new one.
 3. The beta is ad-hoc signed and **not notarized by Apple**. If macOS blocks it, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm.
 4. Allow microphone access when prompted, connect your Scarlett, and select its CoreAudio input. AudD and Discogs tokens are needed only for their online features.
@@ -146,9 +146,10 @@ directly to a **24-bit PCM WAV**. No Audacity export or browser upload is needed
 
 The app opens on **Record**, a four-step flow:
 
-1. **Add.** Type the artist and album and pick the release from Discogs. FlipsideFlow then
-   knows the sides, track names and lengths before you start. (No match, or no token?
-   Choose **Record without looking it up** and name it afterwards.)
+1. **Add.** Choose **Record and identify automatically** to identify the song from the
+   WAV while it is being recorded. Add your AudD and Discogs tokens in **Settings**
+   first. Or search for the album manually before starting. You can also switch off
+   identification and name the album afterwards.
 2. **Record.** The first time, pick the interface, its left/right inputs (usually 1 and 2)
    and 44.1, 48 or 96 kHz; the choice is remembered. The LED meters run straight away:
    set the interface gain so loud passages reach the amber, never the red. Press
@@ -205,11 +206,12 @@ the Library.
 
 #### Identify the song and load an album
 
-In **Record → Set up AudD recognition**, save an API token from the
+In **Settings → AudD song recognition**, save an API token from the
 [AudD dashboard](https://dashboard.audd.io/). AudD offers a trial and paid plans;
 check its [current pricing](https://audd.io/pricing/) before enabling it. No Apple
 Developer membership is needed. Set your Discogs token in **Settings** as usual.
-Keep **Identify album automatically** checked before starting a recording.
+Keep **Identify the album while recording** checked on the main Record screen.
+The **Set up AudD / AudD settings** button opens the same Settings section.
 
 After two minutes of recorded audio (pauses do not count), FlipsideFlow sends a
 10-second excerpt to AudD. It skips silence, heavily clipped audio, and pause/flip
@@ -221,9 +223,11 @@ copy is converted to mono 16-bit. Network work runs separately from capture.
 
 The recognized artist, song, and album are used to search Discogs for vinyl
 releases and verify the song against their tracklists. A clear result appears as
-the likely album while recording; ambiguous results offer a choice. After
-**Stop & save**, the chosen album loads into the editor and starts the usual
-guided track detection. A late match will not replace a manually selected release
+the likely album on the main Record screen while capture continues. The cover,
+album name, sides, and tracklist appear immediately; no need to finish or import
+the WAV first. Ambiguous results offer a choice, and **Identify now** can retry.
+After **Finish record**, the chosen album is carried into the editor and starts
+guided track detection on the completed WAV. A late match will not replace a manually selected release
 or edited tracks. Check the album and pressing before exporting: recognition
 cannot determine your exact vinyl pressing. Manual Discogs search remains available.
 

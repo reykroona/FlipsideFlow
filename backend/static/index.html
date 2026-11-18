@@ -407,12 +407,51 @@
                 </template>
             </ol>
 
+            <section id="live-recognition" x-show="['add', 'record', 'review'].includes(flow.step)" class="vf-panel p-5 space-y-3" aria-label="Automatic song recognition">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <label class="flex items-center gap-2 text-sm text-primary font-semibold">
+                        <input type="checkbox" x-model="identifyAlbum" :disabled="recordingActive || recordingBusy || flow.releaseOrigin === 'manual'">
+                        Identify the album while recording
+                    </label>
+                    <button type="button" class="vf-btn vf-btn-sm" @click="openRecognitionSettings()" x-text="songRecognition.configured ? 'AudD settings' : 'Set up AudD'"></button>
+                </div>
+                <p role="status" class="text-sm text-secondary" x-text="flowRecognitionMessage"></p>
+                <p class="text-xs text-muted">AudD receives a 10-second excerpt from the WAV being recorded, with one retry around 3 minutes if needed. Recording continues; the original WAV stays local.</p>
+                <p x-show="!discogsConfigured" class="text-xs vf-warn">Add your Discogs token in Settings too, so the identified song can load its album and tracklist.</p>
+                <p x-show="flowRecognition?.song" class="text-sm text-primary" x-text="flowRecognition?.song ? `Identified: ${flowRecognition.song.artist} — ${flowRecognition.song.title}` : ''"></p>
+                <template x-if="flowRecognition?.selected_release">
+                    <div class="flex items-center gap-3">
+                        <img x-show="flowRecognition.selected_release.cover_url" :src="flowRecognition.selected_release.cover_url || ''" alt="Likely album cover" class="w-16 h-16 rounded object-cover" referrerpolicy="no-referrer">
+                        <div>
+                            <p class="text-sm text-primary font-semibold" x-text="`${flowRecognition.selected_release.artist} — ${flowRecognition.selected_release.title}`"></p>
+                            <p class="text-xs text-muted">Likely album · exact pressing unconfirmed</p>
+                            <a :href="`https://www.discogs.com/release/${flowRecognition.selected_release.id}`" target="_blank" rel="noopener noreferrer" class="text-xs underline">View on Discogs</a>
+                        </div>
+                    </div>
+                </template>
+                <details x-show="flowRecognition?.candidates?.length">
+                    <summary class="text-sm text-secondary cursor-pointer">Choose or correct the album</summary>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <template x-for="candidate in (flowRecognition?.candidates || [])" :key="candidate.id">
+                            <button type="button" class="vf-btn vf-btn-sm" :disabled="recognitionBusy" @click="recognitionAction('select', {recording_id: recorder.id, release_id: candidate.id})" x-text="`${candidate.artist} — ${candidate.title} (${candidate.year || 'year unknown'})`"></button>
+                        </template>
+                        <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" :disabled="recognitionBusy" @click="recognitionAction('select', {recording_id: recorder.id, release_id: null})">Dismiss suggestion</button>
+                    </div>
+                </details>
+                <button type="button" x-show="flowRecognition && recorder.seconds >= 10" class="vf-btn vf-btn-sm" @click="recognitionAction('identify')"
+                        :disabled="recognitionBusy || ['identifying', 'looking_up'].includes(flowRecognition?.state) || (!songRecognition.configured && !flowRecognition?.song)"
+                        x-text="flowRecognition?.song ? 'Retry Discogs lookup' : 'Identify now'"></button>
+                <p x-show="recognitionNotice" role="status" class="text-xs text-secondary" x-text="recognitionNotice"></p>
+                <p x-show="flowRecognition?.persistence_warning" class="text-xs vf-warn" x-text="flowRecognition?.persistence_warning"></p>
+            </section>
+
             <!-- 1 · ADD -->
             <section x-show="flow.step === 'add'" class="vf-panel p-6 sm:p-8 space-y-6">
                 <div class="space-y-2">
                     <h2 class="text-3xl text-primary">What are you recording?</h2>
-                    <p class="text-secondary max-w-2xl">Type the artist and album. FlipsideFlow looks it up on Discogs, so it knows the sides, track names and lengths before the needle drops.</p>
+                    <p class="text-secondary max-w-2xl">Start recording and let AudD identify the album while it plays. Or search Discogs yourself before recording.</p>
                 </div>
+                <button type="button" class="vf-btn vf-btn-primary" @click="flowSkipLookup()" x-text="identifyAlbum ? 'Record and identify automatically →' : 'Record without identification →'"></button>
                 <form class="flex gap-2" @submit.prevent="flowSearch()">
                     <input id="flow-query" type="search" x-model="flow.query" class="vf-input text-lg" placeholder="e.g. Fleetwood Mac Rumours" aria-label="Artist and album" autocomplete="off">
                     <button type="submit" class="vf-btn vf-btn-primary" :disabled="flow.searching || !flow.query.trim()">
@@ -439,8 +478,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-3 pt-2 border-t" style="border-color: var(--vf-line)">
-                    <button type="button" class="vf-btn vf-btn-ghost mt-4" @click="flowSkipLookup()">Record without looking it up →</button>
-                    <span class="text-xs text-muted mt-4">You can name it after recording.</span>
+                    <span class="text-xs text-muted mt-4">No match? You can search again or name the album after recording. Turn off automatic identification above to record without AudD.</span>
                 </div>
             </section>
 
@@ -878,7 +916,7 @@
 
         <!-- Settings Modal -->
         <div x-show="showSettings" x-cloak @keydown.escape.window="showSettings = false" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div @click.away="showSettings = false" class="bg-card rounded-lg p-6 max-w-md w-full mx-4">
+            <div @click.away="showSettings = false" class="bg-card rounded-lg p-6 max-w-md w-full mx-4 max-h-[85vh] overflow-y-auto">
                 <h2 class="text-2xl font-bold text-primary mb-4">Settings</h2>
                 <div class="space-y-4">
                     <div>
@@ -917,6 +955,22 @@
                             </div>
                         </div>
                     </div>
+
+                    <section id="recognition-settings" x-show="recordingEnabled" class="border-t pt-4 space-y-3" style="border-color: var(--vf-line);">
+                        <h3 class="text-lg font-semibold text-primary">AudD song recognition</h3>
+                        <p class="text-xs text-secondary">Identify a short excerpt from the WAV while recording, then find its album on Discogs. AudD uses an API token, not an in-app login.</p>
+                        <label class="block text-sm text-secondary">AudD API token
+                            <input type="password" x-model="recognitionTokenInput" autocomplete="off" maxlength="512" :placeholder="songRecognition.configured ? 'Token saved — paste to replace' : 'Paste your AudD token'" class="vf-input mt-1">
+                        </label>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" @click="recognitionAction('token', {token: recognitionTokenInput})" :disabled="recognitionBusy || !recognitionTokenInput.trim()">Save AudD token</button>
+                            <button type="button" x-show="songRecognition.configured" class="vf-btn vf-btn-sm" @click="recognitionAction('token', {token: ''})" :disabled="recognitionBusy">Remove token</button>
+                        </div>
+                        <p class="text-xs" :class="songRecognition.configured ? 'vf-ok' : 'text-muted'" x-text="songRecognition.configured ? 'Token saved locally. Validated on the next identification request.' : 'No AudD token configured.'"></p>
+                        <p class="text-xs text-secondary"><a href="https://dashboard.audd.io/" target="_blank" rel="noopener noreferrer" class="underline">Get a token from AudD</a> · <a href="https://audd.io/pricing/" target="_blank" rel="noopener noreferrer" class="underline">Trial and pricing</a></p>
+                        <p class="text-xs text-muted">Stored with access restricted to your Mac user account; never returned by the API. Saving here takes effect immediately, including during a recording.</p>
+                        <p x-show="recognitionNotice" role="status" class="text-xs text-secondary" x-text="recognitionNotice"></p>
+                    </section>
 
                     <details class="border-t pt-4" style="border-color: var(--vf-line);">
                         <summary class="cursor-pointer text-sm font-semibold text-secondary">Advanced</summary>

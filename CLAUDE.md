@@ -1,6 +1,6 @@
 # FlipsideFlow — Claude Code Context
 
-FlipsideFlow is a fork of VinylFlow (MIT; keep the original LICENSE notice). User-facing text says FlipsideFlow; internal identifiers keep the old name on purpose: `VINYLFLOW_*` environment variables, the `.vinylflow.json` export manifest, the Docker service, `rthooks/rthook_vinylflow.py` and the `assets/VinylFlow.*` icons. The desktop launcher keeps using existing `VinylFlow` app-data and `~/Music/VinylFlow` folders (`LEGACY_APP_NAME`); new installs get `FlipsideFlow` folders.
+FlipsideFlow is a fork of VinylFlow (MIT; keep the original LICENSE notice). User-facing text says FlipsideFlow; internal identifiers keep the old name on purpose: `VINYLFLOW_*` environment variables, the `.vinylflow.json` export manifest, the Docker service and `rthooks/rthook_vinylflow.py`. App icons use `assets/FlipsideFlow.*` (white F, orange F on black). The desktop launcher keeps using existing `VinylFlow` app-data and `~/Music/VinylFlow` folders (`LEGACY_APP_NAME`); new installs get `FlipsideFlow` folders.
 
 ## Project Purpose
 Desktop app to digitize vinyl records: upload a WAV/AIFF recording of a vinyl side, detect track boundaries via silence analysis, search Discogs for metadata, and export split + tagged FLAC/MP3/AIFF files.
@@ -121,6 +121,7 @@ audio_processor.py  metadata_handler.py  config.py    Discogs API
 
 - **Views**: `view` is `record` (default when recording is enabled), `library` or `workbench` (the original page). Overlays (settings, setup, context menus, toasts) sit outside the views.
 - **flow.js** is merged into the app object by property descriptor (getters survive). app.js calls its hooks optionally: `initFlow`, `onRecordedFileAccepted(file)` (return true = handled), `onExportComplete(fileId, path)`, `pauseBar`.
+- **Live recognition**: `syncRecognition` calls `onRecognitionUpdated` to set the guided flow's album during capture, scoped to the recorder id. `flow.releaseOrigin` protects manual picks. This never calls `selectRelease` or analyzes the growing WAV; the finalized file inherits metadata and recorded sides once at stop. AudD token controls live in Settings; progress and album choices are on Record. Tests must load both `flow.js` and `app.js` to cover this integration.
 - **One player at a time**: the bottom bar (`$refs.barPlayer`), the track preview and the waveform stop each other; `setVolume` drives all three and saves `PLAYBACK_VOLUME` to settings.json (the pywebview window is private mode, so localStorage does not persist).
 - **Recorded flips** (`session.recording_side_markers`) are hard side breaks in `/api/analyze-guided` when their count equals `side_breaks`: each side is placed on its own envelope slice. A flip with no audio after it is dropped at stop.
 - **Auto flip**: `POST /api/recording/start {auto_flip, side_lengths}`. The writer thread feeds `SideEndDetector`; the watchdog/status call `_auto_step` to pause; a needle drop is saved sample-exactly by the writer (5 s pre-roll) before the state flips back to recording.

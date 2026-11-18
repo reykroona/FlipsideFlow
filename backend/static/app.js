@@ -438,6 +438,7 @@ function vinylApp() {
         syncRecognition(data) {
             if (!data) return;
             if (!data.recording_id || !this.recorder.id || data.recording_id === this.recorder.id) this.songRecognition = data;
+            if (typeof this.onRecognitionUpdated === 'function') this.onRecognitionUpdated(data);
             const file = this.uploadedFiles.find(f => f.id === data.recording_id);
             if (file) {
                 file.recognition = data;
@@ -457,7 +458,9 @@ function vinylApp() {
             file.recognitionApplied = true;
             this.searchSeq++;
             this.searchLoading = false;
-            this.selectRelease(release, { automatic: true });
+            const sides = Array.isArray(file.recording_side_markers)
+                ? this.releaseSides(release).slice(0, file.recording_side_markers.length + 1).map(g => g.side) : null;
+            this.selectRelease(release, { automatic: true, sides });
             return true;
         },
 

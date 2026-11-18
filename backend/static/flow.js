@@ -11,7 +11,9 @@ function vinylFlowMixin() {
         results: [],
         searching: false,
         notice: '',
-        release: null,          // Discogs release picked before recording (tracks loaded)
+        release: null,          // manual pick or likely album recognized during capture
+        releaseOrigin: null,   // manual | recognition
+        captureId: null,
         loadingId: null,
         autoFlip: true,
         showInput: false,
@@ -35,6 +37,7 @@ function vinylFlowMixin() {
             if (this.recordingActive) {
                 this.view = 'record';
                 this.flow.step = 'record';
+                this.onRecognitionUpdated(this.songRecognition);
             }
             window.addEventListener('keydown', (e) => this.flowKey(e));
         },
@@ -116,14 +119,20 @@ function vinylFlowMixin() {
 
         async flowPick(result) {
             if (this.flow.loadingId) return;
+            const seq = ++this._flowSeq;
             const release = await this.fetchRelease(result);
-            if (!release) return;
+            if (!release || seq !== this._flowSeq) return;
             this.flow.release = release;
+            this.flow.releaseOrigin = 'manual';
             this.flowGoRecord();
         },
 
         flowSkipLookup() {
+            this._flowSeq++;
+            this.flow.searching = false;
             this.flow.release = null;
+            this.flow.releaseOrigin = null;
+            this.flow.captureId = null;
             this.flowGoRecord();
         },
 
@@ -133,6 +142,42 @@ function vinylFlowMixin() {
         },
 
         // ---------------------------------------------------------------- Record
+
+        openRecognitionSettings() {
+            this.showSettings = true;
+            this.$nextTick(() => document.getElementById('recognition-settings')?.scrollIntoView({ block: 'center' }));
+        },
+
+        get flowRecognition() {
+            const data = this.songRecognition;
+            return data.recording_id && data.recording_id === this.recorder.id
+                && (this.flow.captureId === data.recording_id || this.flow.fileId === data.recording_id)
+                ? data : null;
+        },
+
+        get flowRecognitionMessage() {
+            const data = this.flowRecognition;
+            if (this.flow.release && this.flow.releaseOrigin !== 'recognition') return 'Using the album you selected. Automatic identification is not needed.';
+            if (!(data ? data.enabled : this.identifyAlbum) && !data?.song) return 'Automatic identification is off. You can still record and search manually.';
+            if (!this.songRecognition.configured && !data?.song) return 'Add your AudD token in Settings to identify the record while recording.';
+            if (data?.state === 'waiting' && data.enabled) return `Listening while recording · first check in ${this.formatDuration(Math.max(0, 120 - (this.recorder.seconds || 0)))}`;
+            return data?.message || 'Start recording. After 2 recorded minutes, a short WAV excerpt identifies the song and loads its likely album here.';
+        },
+
+        /** Live metadata only: never register or analyze the WAV while it is growing. */
+        onRecognitionUpdated(data) {
+            if (!data?.recording_id || data.recording_id !== this.recorder.id || this.flow.step !== 'record') return;
+            if (!this.recordingActive && this.flow.captureId !== data.recording_id) return;
+            this.flow.captureId = data.recording_id;
+            if (this.flow.release && this.flow.releaseOrigin !== 'recognition') return;
+            if (data.selected_release?.tracks?.length) {
+                this.flow.release = data.selected_release;
+                this.flow.releaseOrigin = 'recognition';
+            } else if (data.selection === 'manual' && this.flow.releaseOrigin === 'recognition') {
+                this.flow.release = null;
+                this.flow.releaseOrigin = null;
+            }
+        },
 
         get flowSides() {
             return this.flow.release ? this.releaseSides(this.flow.release) : [];
@@ -224,7 +269,7 @@ function vinylFlowMixin() {
             await this.recordingAction('start', {
                 title: this.recordingTitle,
                 // A release picked up front needs no song recognition.
-                identify_album: !this.flow.release && this.identifyAlbum,
+                identify_album: this.flow.releaseOrigin !== 'manual' && this.identifyAlbum,
                 auto_flip: this.flow.autoFlip,
                 side_lengths: this.flowSides.map(g => g.totalSeconds || 0),
             });
@@ -277,7 +322,10 @@ function vinylFlowMixin() {
                 const sides = this.releaseSides(release).slice(0, flips + 1).map(g => g.side);
                 this.searchSeq++;              // the file-name search selectFile started is not needed
                 this.searchLoading = false;
-                this.selectRelease(release, { sides });
+                // selectFile may already have applied saved recognition and started detection.
+                if (this.selectedRelease?.id !== release.id) {
+                    this.selectRelease(release, { sides, automatic: this.flow.releaseOrigin === 'recognition' });
+                }
             } else {
                 this.flow.query = this.recordingTitle.replace(/\s+[-–—]\s+/, ' ').trim();
                 this.flow.results = [];
