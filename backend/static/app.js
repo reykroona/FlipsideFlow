@@ -77,6 +77,7 @@ function vinylApp() {
         recordingInput: { device: '', device_name: '', left: 1, right: 2, rate: 48000 },
         recordingTitle: '',
         identifyAlbum: true,
+        identifyImports: true,
         recognitionTokenInput: '',
         recognitionBusy: false,
         recognitionNotice: '',
@@ -258,6 +259,7 @@ function vinylApp() {
             this.searchLoading = false;
             this._pendingPickId = null;
             this.recognitionReleaseId = null;
+            this.currentFile.importRecognitionDismissed = true;
             this.selectedRelease = { id: null, manual: true, artist, title, year: '', label: '', cover_url: null, tracks: [] };
             this.selectedSides = ['A'];
             this.syncManualTracks();
@@ -441,7 +443,7 @@ function vinylApp() {
             if (!data.recording_id || !this.recorder.id || data.recording_id === this.recorder.id) this.songRecognition = data;
             if (typeof this.onRecognitionUpdated === 'function') this.onRecognitionUpdated(data);
             const file = this.uploadedFiles.find(f => f.id === data.recording_id);
-            if (file) {
+            if (file && file.recognition?.source !== 'import') {
                 file.recognition = data;
                 if (this.currentFileId === file.id) this.applyRecognitionToCurrentFile();
             }
@@ -450,7 +452,7 @@ function vinylApp() {
         applyRecognitionToCurrentFile() {
             const file = this.currentFile;
             const release = file?.recognition?.selected_release;
-            if (!release || !Array.isArray(release.tracks) || file.recognitionApplied) return false;
+            if (!release || !Array.isArray(release.tracks) || file.recognitionApplied || file.importRecognitionDismissed) return false;
             if (this.selectedRelease || this.boundariesEdited || this.detectedTracks.length) {
                 file.recognitionApplied = true; // explicit choices/edits always win over late matches
                 return false;
@@ -459,10 +461,79 @@ function vinylApp() {
             file.recognitionApplied = true;
             this.searchSeq++;
             this.searchLoading = false;
-            const sides = Array.isArray(file.recording_side_markers)
+            const sides = file.recognition?.source !== 'import' && Array.isArray(file.recording_side_markers)
                 ? this.releaseSides(release).slice(0, file.recording_side_markers.length + 1).map(g => g.side) : null;
             this.selectRelease(release, { automatic: true, sides });
             return true;
+        },
+
+        get importedRecognitionBusy() {
+            return !!this.currentFile?.recognitionRequest || ['identifying', 'looking_up'].includes(this.currentFile?.recognition?.state);
+        },
+
+        async importedRecognitionRequest(fileId, method = 'GET', selection = undefined) {
+            const response = await fetch(`/api/files/${encodeURIComponent(fileId)}/recognition${selection === undefined ? '' : '/select'}`, {
+                method, ...(selection === undefined ? {} : {
+                    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({release_id: selection})
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Audio identification failed. Try again.');
+            return data;
+        },
+
+        syncImportedRecognition(data) {
+            const file = this.uploadedFiles.find(f => f.id === data.file_id);
+            if (!file) return;
+            file.recognition = data;
+            if (this.currentFileId === file.id) this.applyRecognitionToCurrentFile();
+        },
+
+        async pollImportedRecognition(fileId) {
+            const file = this.uploadedFiles.find(f => f.id === fileId);
+            if (!file || file.recognitionPolling || this._recordingDisposed) return;
+            file.recognitionPolling = true;
+            try {
+                const data = await this.importedRecognitionRequest(fileId);
+                this.syncImportedRecognition(data);
+                if (['identifying', 'looking_up'].includes(data.state) && this.uploadedFiles.includes(file) && !this._recordingDisposed) {
+                    setTimeout(() => this.pollImportedRecognition(fileId), 1000);
+                }
+            } catch (error) {
+                file.recognitionNotice = error.message;
+                // A failed poll must not leave the retry control disabled forever.
+                if (file.recognition?.source === 'import') file.recognition = {...file.recognition, state: 'error'};
+            } finally { file.recognitionPolling = false; }
+        },
+
+        async identifyImportedFile(fileId = this.currentFileId) {
+            const file = this.uploadedFiles.find(f => f.id === fileId);
+            if (!file || file.recognitionRequest || ['identifying', 'looking_up'].includes(file.recognition?.state)) return;
+            if (fileId === this.currentFileId && (this.analyzing || this.currentFileExporting)) return;
+            file.recognitionRequest = true;
+            file.recognitionNotice = '';
+            try {
+                const data = await this.importedRecognitionRequest(fileId, 'POST');
+                this.syncImportedRecognition(data);
+                if (['identifying', 'looking_up'].includes(data.state)) this.pollImportedRecognition(fileId);
+            } catch (error) { file.recognitionNotice = error.message; }
+            finally { file.recognitionRequest = false; }
+        },
+
+        async chooseImportedAlbum(releaseId) {
+            const fileId = this.currentFileId;
+            const file = this.currentFile;
+            const previousRelease = this.selectedRelease;
+            if (!file || this.analyzing || this.currentFileExporting || file.recognitionRequest) return;
+            file.recognitionRequest = true;
+            try {
+                const data = await this.importedRecognitionRequest(fileId, 'POST', releaseId);
+                // Explicit picks use selectRelease's normal edited-boundary confirmation.
+                file.recognitionApplied = true;
+                this.syncImportedRecognition(data);
+                if (fileId === this.currentFileId && this.selectedRelease === previousRelease && data.selected_release) this.selectRelease(data.selected_release);
+            } catch (error) { file.recognitionNotice = error.message; }
+            finally { file.recognitionRequest = false; }
         },
 
         async recognitionAction(action, payload = {}) {
@@ -1315,6 +1386,12 @@ function vinylApp() {
 
             if (this.currentFile) {
                 this.currentFile.recognitionApplied = false;
+                if (this.currentFile.recognition?.source === 'import' && ['identifying', 'looking_up'].includes(this.currentFile.recognition.state)) {
+                    this.pollImportedRecognition(fileId);
+                }
+                if (this.recordingEnabled && this.identifyImports && this.songRecognition.configured && !this.currentFile.recognition) {
+                    this.identifyImportedFile(fileId);
+                }
                 const song = this.currentFile.recognition?.song;
                 this.searchQuery = song ? `${song.artist} ${song.album || song.title}` : this.cleanFilename(this.currentFile.filename);
                 if (this.applyRecognitionToCurrentFile()) return;
@@ -1796,6 +1873,7 @@ function vinylApp() {
                 return;
             }
             this.selectedRelease = release;
+            if (!automatic && this.currentFile) this.currentFile.importRecognitionDismissed = true;
             this.recognitionReleaseId = automatic ? release.id : null;
             const keys = this.releaseSides(release).map(g => g.side);
             const chosen = Array.isArray(sides) ? keys.filter(k => sides.includes(k)) : [];
@@ -1945,6 +2023,7 @@ function vinylApp() {
          * re-detects over them.
          */
         markEdited() {
+            if (this.currentFile) this.currentFile.importRecognitionDismissed = true;
             this.boundariesEdited = true;
             this.boundaryEditCount++;
         },
@@ -2165,6 +2244,7 @@ function vinylApp() {
             // A running detection would install its tracks and markers on a release that is gone;
             // an export of this recording needs its release, and selectRelease is refused meanwhile
             if (this.analyzing || this.currentFileExporting) return;
+            if (this.currentFile) this.currentFile.importRecognitionDismissed = true;
             this.selectedRelease = null;
             this._pendingPickId = null;   // a card still loading must not bring a release back
             this.selectedSides = [];

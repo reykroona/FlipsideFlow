@@ -147,7 +147,7 @@ class AudDProvider:
             if response.status_code == 429:
                 raise RecognitionError("AudD request limit reached. Check your account before retrying.", retryable=False)
             if response.status_code != 200:
-                raise RecognitionError("AudD is temporarily unavailable. Recording is continuing.")
+                raise RecognitionError("AudD is temporarily unavailable. Try again later.")
             payload = response.json()
         except (requests.RequestException, ValueError):
             # Never reflect request bodies, URLs containing credentials, or provider error text.

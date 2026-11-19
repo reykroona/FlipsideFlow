@@ -1208,6 +1208,14 @@
                         </details>
                     </div>
 
+                    <div x-show="recordingEnabled && importTab !== 'record'" class="mb-4 text-sm text-secondary">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" x-model="identifyImports">
+                            Identify imported audio with AudD when opened
+                        </label>
+                        <p class="text-xs mt-1">With an AudD token saved, opening a new import sends a 10-second music excerpt. The original stays on your Mac.</p>
+                    </div>
+
                     <!-- Import from folder: files are read in place, never uploaded -->
                     <div x-show="showFolderTab && importTab === 'folder'" x-cloak>
                         <div class="flex items-center gap-2 mb-2">
@@ -1391,6 +1399,29 @@
                             </div>
                         </template>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- File recognition stays separate from the active recorder's status. -->
+        <div x-show="currentFile && recordingEnabled" x-cloak class="max-w-7xl mx-auto px-4 pb-4 sm:px-6 lg:px-8">
+            <div class="bg-card rounded-lg p-5 space-y-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <h3 class="text-lg font-semibold text-primary">Identify imported audio</h3>
+                    <button class="vf-btn vf-btn-sm" @click="identifyImportedFile()"
+                        :disabled="importedRecognitionBusy || analyzing || currentFileExporting || (!songRecognition.configured && !currentFile?.recognition?.song)"
+                        x-text="importedRecognitionBusy ? 'Identifying…' : currentFile?.recognition?.song ? 'Retry Discogs lookup' : 'Identify audio'"></button>
+                    <button class="vf-btn vf-btn-sm" @click="showSettings = true">AudD settings</button>
+                </div>
+                <p class="text-xs text-secondary">AudD receives a 10-second excerpt from the first two minutes. Discogs supplies the likely album, artwork and tracklist. Check the pressing and sides before exporting.</p>
+                <p x-show="!songRecognition.configured && !currentFile?.recognition?.song" class="text-sm text-secondary">Add your AudD API token in Settings to identify audio.</p>
+                <p x-show="currentFile?.recognition?.song" class="text-primary" x-text="currentFile?.recognition?.song ? `${currentFile.recognition.song.artist} — ${currentFile.recognition.song.title}` : ''"></p>
+                <p class="text-sm text-secondary" role="status" x-text="currentFile?.recognitionNotice || currentFile?.recognition?.message || ''"></p>
+                <div class="flex flex-wrap gap-2">
+                    <template x-for="album in (currentFile?.recognition?.source === 'import' ? currentFile.recognition.candidates || [] : [])" :key="album.id">
+                        <button class="vf-btn vf-btn-sm" @click="chooseImportedAlbum(album.id)" :disabled="analyzing || currentFileExporting || currentFile?.recognitionRequest"
+                            x-text="`${album.artist} — ${album.title}${album.year ? ' (' + album.year + ')' : ''}`"></button>
+                    </template>
                 </div>
             </div>
         </div>

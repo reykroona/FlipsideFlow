@@ -15,7 +15,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Use FlipsideFlow
 
-- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.4/FlipsideFlow-0.1.0-beta.4-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
+- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.5/FlipsideFlow-0.1.0-beta.5-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
 - 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
 - ⚙️ **Python local mode:** see [Manual Setup (Non-Docker)](#manual-setup-non-docker)
 
@@ -126,7 +126,7 @@ Tokens are stored locally and persist across app restarts. If one service fails 
 
 The downloadable beta is for **Apple Silicon Macs (M1 or newer) running macOS 14 Sonoma or later**. Windows and Intel Mac packaging recipes are included in the source, but this release supplies only an ARM64 Mac app.
 
-1. Download `FlipsideFlow-0.1.0-beta.4-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
+1. Download `FlipsideFlow-0.1.0-beta.5-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
 2. Unzip it and drag **FlipsideFlow.app** to **Applications**. Quit an older running copy before opening the new one.
 3. The beta is ad-hoc signed and **not notarized by Apple**. If macOS blocks it, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm.
 4. Allow microphone access when prompted, connect your Scarlett, and select its CoreAudio input. AudD and Discogs tokens are needed only for their online features.
@@ -235,6 +235,25 @@ configuration directory with owner-only file permissions and is never returned
 by the API. `AUDD_API_TOKEN` can supply it in development; saving/removing a token
 in the app overrides that environment variable. Removing the token disables
 future AudD requests but cannot cancel a request already sent.
+
+#### Identify imported WAV/AIFF audio (macOS desktop)
+
+In **Workbench → Add Files**, leave **Identify imported audio with AudD when opened**
+checked. With your AudD token saved in Settings, opening a newly imported file
+starts identification immediately; there is no two-minute wait for an existing
+file. You can turn this off and use **Identify audio** below the file controls.
+Both uploads and files selected from the import folder/native file picker work.
+
+FlipsideFlow selects a clear 10-second excerpt from the first two minutes, sends
+only that excerpt to AudD, and searches Discogs for the identified song's album.
+A clear match loads the artwork and tracklist and starts guided track detection.
+If several albums match, choose one of the suggestions. Existing album choices
+and edited tracks are protected from late automatic results. Check the pressing,
+sides and split points before exporting.
+
+**Retry Discogs lookup** reuses the song match without another AudD request.
+No-match and connection errors leave manual search available. Imported-file
+results last for the current app session; originals are never modified.
 
 #### Build an Apple Silicon app locally
 

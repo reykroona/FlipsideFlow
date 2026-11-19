@@ -25,6 +25,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from backend.security import SameOriginMiddleware
 from backend.recording_api import router as recording_router, shutdown_recording
 from backend.library_api import router as library_router, enable_library
+from backend.import_recognition_api import router as import_recognition_router, shutdown as shutdown_import_recognition
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ app = FastAPI(title="FlipsideFlow API", version="1.0.0")
 app.add_middleware(SameOriginMiddleware)
 app.include_router(recording_router)
 app.include_router(library_router)
+app.include_router(import_recognition_router)
 
 # Global state management.  ``session_store`` owns every Session;
 # ``websocket_connections`` is the list of subscribers for progress
@@ -300,6 +302,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    await shutdown_import_recognition()
     await asyncio.to_thread(shutdown_recording)
 
 
