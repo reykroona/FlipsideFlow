@@ -172,6 +172,8 @@ These rules are **critical** — violating them breaks the bundled app silently.
    - `PYTHONNET_RUNTIME_DLL` → bundled `Python.Runtime.dll`
    - `SSL_CERT_FILE` + `REQUESTS_CA_BUNDLE` → bundled `cacert.pem`
 6. Bundle `backend/static/` as data files so the frontend is served correctly.
+7. Keep `hookspath=['hooks']`: `hooks/hook-ssl.py` preserves the build runtime's optional `codex-rejected-cas.pem` certificate policy beside frozen `ssl.py`. If required by the runtime but omitted, every HTTPS connection fails with `FileNotFoundError`, even when certifi is present. Never disable certificate verification or remove the runtime policy to work around this.
+8. `scripts/build-app.sh` runs the frozen app with `--check-https` to verify TLS offline. Before publishing, also run `--check-https-online` on the extracted release app to test public Discogs and AudD endpoints without credentials.
 
 ---
 

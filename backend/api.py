@@ -1684,25 +1684,14 @@ async def setup_discogs_token(request: DiscogsSetupRequest):
     Validates token, saves to persistent config, reinitializes without restart.
     """
     try:
-        # Validate token
-        import discogs_client
-
-        test_client = discogs_client.Client(
-            request.user_agent,
-            user_token=request.token
-        )
-
+        from discogs_auth import DiscogsAuthError, validate_token
         try:
-            identity = test_client.identity()
-            username = identity.username
-        except Exception as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid Discogs token: {str(e)}"
-            )
+            username = await asyncio.to_thread(validate_token, request.token, request.user_agent)
+        except DiscogsAuthError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from None
 
         # Save to persistent config
-        if not config.save_token(request.token, request.user_agent):
+        if not config.save_token(request.token.strip(), request.user_agent):
             raise HTTPException(
                 status_code=500,
                 detail="Failed to save token to config file"
@@ -1721,10 +1710,10 @@ async def setup_discogs_token(request: DiscogsSetupRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=500,
-            detail=f"Setup failed: {str(e)}"
+            detail="Could not finish Discogs setup. Check that FlipsideFlow can save its local settings and try again."
         )
 
 

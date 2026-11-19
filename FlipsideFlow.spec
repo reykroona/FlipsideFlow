@@ -86,7 +86,7 @@ a = Analysis(
     binaries=BINARIES,
     datas=DATA_FILES,
     hiddenimports=HIDDEN_IMPORTS,
-    hookspath=[],
+    hookspath=['hooks'],
     hooksconfig={},
     runtime_hooks=['rthooks/rthook_vinylflow.py'],
     excludes=EXCLUDES,
@@ -147,7 +147,7 @@ app = BUNDLE(
     bundle_identifier='app.flipsideflow.desktop',
     info_plist={
         'CFBundleShortVersionString': '0.1.0',
-        'CFBundleVersion': '3',
+        'CFBundleVersion': '4',
         'LSMinimumSystemVersion': '14.0',
         'NSMicrophoneUsageDescription': 'FlipsideFlow records vinyl audio from your selected USB audio interface.',
         'NSHighResolutionCapable': True,

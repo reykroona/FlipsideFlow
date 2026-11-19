@@ -166,13 +166,11 @@ class Config:
             tuple: (success, message)
         """
         try:
-            import discogs_client
-
-            client = discogs_client.Client(self.discogs_user_agent, user_token=self.discogs_token)
-            identity = client.identity()
-            return True, f"Connected as: {identity.username}"
-        except Exception as e:
-            return False, f"Discogs connection failed: {str(e)}"
+            from discogs_auth import validate_token
+            username = validate_token(self.discogs_token, self.discogs_user_agent)
+            return True, f"Connected as: {username}"
+        except Exception:
+            return False, "Discogs connection could not be verified."
 
     def _load_from_json(self, settings_path: Path) -> dict:
         """

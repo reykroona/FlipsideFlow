@@ -15,7 +15,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Use FlipsideFlow
 
-- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.3/FlipsideFlow-0.1.0-beta.3-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
+- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.4/FlipsideFlow-0.1.0-beta.4-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
 - 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
 - ⚙️ **Python local mode:** see [Manual Setup (Non-Docker)](#manual-setup-non-docker)
 
@@ -126,7 +126,7 @@ Tokens are stored locally and persist across app restarts. If one service fails 
 
 The downloadable beta is for **Apple Silicon Macs (M1 or newer) running macOS 14 Sonoma or later**. Windows and Intel Mac packaging recipes are included in the source, but this release supplies only an ARM64 Mac app.
 
-1. Download `FlipsideFlow-0.1.0-beta.3-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
+1. Download `FlipsideFlow-0.1.0-beta.4-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
 2. Unzip it and drag **FlipsideFlow.app** to **Applications**. Quit an older running copy before opening the new one.
 3. The beta is ad-hoc signed and **not notarized by Apple**. If macOS blocks it, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm.
 4. Allow microphone access when prompted, connect your Scarlett, and select its CoreAudio input. AudD and Discogs tokens are needed only for their online features.
@@ -250,6 +250,14 @@ The app is written to `dist/FlipsideFlow.app`, with PortAudio and the Microphone
 description bundled. `VINYLFLOW_FFMPEG_PATH` can select a standalone FFmpeg binary.
 For a distribution build, set `VINYLFLOW_CODESIGN_IDENTITY` to your Developer ID
 identity and notarize the resulting app. The default local build is ad-hoc signed.
+The build checks that the bundled app can create a verified HTTPS context. Before
+publishing, also check public Discogs and AudD connectivity from the packaged app:
+
+```bash
+dist/FlipsideFlow.app/Contents/MacOS/FlipsideFlow --check-https-online
+```
+
+This diagnostic does not open the UI or read your API tokens.
 
 ### Releases
 

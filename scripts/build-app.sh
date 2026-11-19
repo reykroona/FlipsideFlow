@@ -15,4 +15,6 @@ export PYINSTALLER_CONFIG_DIR="$PWD/build/pyinstaller-cache"
 /usr/bin/file dist/FlipsideFlow.app/Contents/MacOS/FlipsideFlow
 /usr/bin/lipo -verify_arch arm64 dist/FlipsideFlow.app/Contents/MacOS/FlipsideFlow
 /usr/bin/codesign --verify --deep --strict dist/FlipsideFlow.app
+# Catch missing SSL runtime files in the packaged executable, without network access.
+dist/FlipsideFlow.app/Contents/MacOS/FlipsideFlow --check-https
 echo "Built $PWD/dist/FlipsideFlow.app"

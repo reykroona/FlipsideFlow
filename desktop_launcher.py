@@ -330,6 +330,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    if "--check-https" in sys.argv or "--check-https-online" in sys.argv:
+        from network_checks import main as check_network
+        sys.exit(check_network(online="--check-https-online" in sys.argv))
     try:
         main()
     finally:
