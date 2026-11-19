@@ -277,6 +277,24 @@ def _runs(mask: np.ndarray) -> List[Tuple[int, int]]:
     return [(int(a), int(b)) for a, b in zip(edges[0::2], edges[1::2])]
 
 
+def bridge_clicks(gaps, total_duration, min_silence_s):
+    """Bridge <=100 ms bursts only when >=90% of the resulting gap is quiet."""
+    merged = []
+    noise = 0.0
+    for gap in gaps:
+        if merged and merged[-1].end is not None:
+            prev = merged[-1]
+            burst = gap.start - prev.end
+            length = (gap.end if gap.end is not None else total_duration) - prev.start
+            if 0 <= burst <= .100001 and noise + burst <= length * .1:
+                merged[-1] = Gap(prev.start, gap.end)
+                noise += burst
+                continue
+        merged.append(gap)
+        noise = 0.0
+    return [g for g in merged if (g.end if g.end is not None else total_duration) - g.start + 1e-9 >= min_silence_s]
+
+
 def gaps_from_envelope(
     db: np.ndarray, frame_s: float, threshold_db: float, min_silence_s: float
 ) -> List[Gap]:
@@ -289,10 +307,8 @@ def gaps_from_envelope(
     gaps: List[Gap] = []
     n = len(db)
     for a, b in _runs(db < threshold_db):
-        if (b - a) * frame_s + 1e-9 < min_silence_s:
-            continue
         gaps.append(Gap(a * frame_s, None if b >= n else b * frame_s))
-    return gaps
+    return bridge_clicks(gaps, n * frame_s, min_silence_s)
 
 
 # Vinyl surface noise and an empty lead-in/run-out groove normally sit

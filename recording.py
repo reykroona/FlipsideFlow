@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+from silence_learning import SilenceLearning
 
 RATES = (44100, 48000, 96000)
 FRAME_BYTES = 6  # stereo, packed signed 24-bit PCM
@@ -54,13 +55,24 @@ class SideEndDetector:
     def __init__(self):
         self.quiet = 0.0
         self.loud = 0.0
+        self.burst = 0.0
+        self.clicks = 0.0
 
     def reset(self):
-        self.quiet = self.loud = 0.0
+        self.quiet = self.loud = self.burst = self.clicks = 0.0
 
     def side_ended(self, rms_db: float, block_s: float, side_s: float, min_side_s: float) -> bool:
-        self.quiet = self.quiet + block_s if rms_db < self.QUIET_DB else 0.0
-        return self.quiet >= self.QUIET_S and side_s >= min_side_s
+        if rms_db < self.QUIET_DB:
+            self.quiet += block_s
+            self.clicks += self.burst if self.burst <= .1 else 0
+            self.burst = 0.0
+            if self.clicks > max(.1, self.quiet * .1):
+                self.quiet = self.clicks = 0.0
+        else:
+            self.burst += block_s
+            if self.burst > .1:
+                self.quiet = self.clicks = 0.0
+        return self.burst == 0 and self.quiet >= self.QUIET_S and side_s >= min_side_s
 
     def needle_dropped(self, rms_db: float, block_s: float) -> bool:
         self.loud = self.loud + block_s if rms_db > self.LOUD_DB else 0.0
@@ -133,6 +145,7 @@ class Recorder:
         self._side_index = 0
         self._side_frames = 0        # frames saved since this side started
         self._detector = SideEndDetector()
+        self.calibration = SilenceLearning()
         self._auto_waiting = False   # paused at a side flip, listening for the needle
         self._auto_live = False      # needle dropped: the writer saves before the state catches up
         self._auto_event = None      # "side_end" / "needle_drop", acted on by the control thread
@@ -204,6 +217,7 @@ class Recorder:
                     device=device, channels=2, dtype="int24", samplerate=rate,
                     blocksize=2048, latency="high", dither_off=True,
                     extra_settings=settings, callback=self._callback)
+                self.calibration.cancel()
                 self._settings = dict(device=device, device_name=device_name, left=left, right=right, rate=rate)
                 self._remember_input()
                 self._worker_stop.clear()
@@ -272,6 +286,7 @@ class Recorder:
                 packed = np.frombuffer(data, dtype=np.uint8).reshape(-1, 2, 3).astype(np.int32)
                 values = packed[:, :, 0] | (packed[:, :, 1] << 8) | (packed[:, :, 2] << 16)
                 values = (values ^ 0x800000) - 0x800000
+                self.calibration.feed(values, self._settings["rate"])
                 peaks = np.max(np.abs(values), axis=0) / 8388608.0
                 self._levels = peaks.tolist()
                 self._meter_time = time.monotonic()
@@ -401,6 +416,7 @@ class Recorder:
                 raise RecordingError("Check the input levels before starting a recording.")
             if shutil.disk_usage(self.root).free < MIN_FREE_BYTES:
                 raise RecordingError("Not enough free disk space to start recording.")
+            self.calibration.cancel()
             self._drain()
             ident = str(uuid.uuid4())
             folder = self.root / ident
@@ -582,7 +598,7 @@ class Recorder:
             if self._state in ACTIVE_STATES:
                 self._auto_step()
             levels = self._levels if time.monotonic() - self._meter_time < 1 else [0, 0]
-            return dict(state=self._state, id=self._manifest["id"] if self._manifest else None,
+            return dict(calibration=self.calibration.status(), state=self._state, id=self._manifest["id"] if self._manifest else None,
                         title=self._manifest["title"] if self._manifest else "",
                         seconds=self._bytes / FRAME_BYTES / self._settings["rate"] if self._settings else 0,
                         levels=[round(20 * math.log10(max(p, 0.000001)), 1) for p in levels],
@@ -593,6 +609,18 @@ class Recorder:
                         auto_flip=self._auto_flip, auto_waiting=self._auto_waiting and self._state == "paused",
                         auto_message=self._auto_message, side=self._side_letter(self._side_index),
                         side_seconds=self._side_frames / self._settings["rate"] if self._settings else 0)
+
+    def learn_silence(self, action):
+        with self._control:
+            if action == 'cancel':
+                self.calibration.cancel()
+            elif self._state != 'monitoring':
+                raise RecordingError('Start input monitoring before learning silence; finish the current recording first.')
+            elif action == 'start':
+                self.calibration.start()
+            elif action != 'apply':
+                raise RecordingError('Unknown calibration action.')
+            return self.calibration.status()
 
     def capture_snapshot(self):
         """Small immutable description for background recognition; no audio/network work."""
@@ -628,8 +656,6 @@ class Recorder:
         """Repair a checkpointed/interrupted header, then return a durable source."""
         with self._control:
             self._lock_folder()
-            if self._state in ACTIVE_STATES:
-                raise RecordingError("Stop recording before opening a saved recording.")
             try:
                 ident = str(uuid.UUID(ident))
                 folder = self.root / ident
@@ -638,6 +664,8 @@ class Recorder:
                 item = json.loads((folder / "manifest.json").read_text())
                 if item["id"] != ident or item["rate"] not in RATES:
                     raise ValueError("Invalid recording manifest")
+                if self._state in ACTIVE_STATES and (item['state'] != 'finished' or ident == (self._manifest or {}).get('id')):
+                    raise RecordingError('Cannot open or repair an active recording.')
                 path = folder / "audio.wav"
                 frames = max(0, path.stat().st_size - HEADER_BYTES) // FRAME_BYTES
                 if not frames:

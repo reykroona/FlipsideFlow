@@ -6,6 +6,7 @@ import ipaddress
 import os
 import sys
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -102,9 +103,30 @@ async def monitor(settings: InputSettings, request: Request):
     return await call(rec.monitor, **settings.model_dump())
 
 
+@router.post('/silence/{action}')
+async def learn_silence(action: Literal['start', 'cancel', 'apply'], request: Request):
+    rec = local_recorder(request)
+    result = await call(rec.learn_silence, action)
+    if action != 'apply': return {'calibration': result}
+    if result['state'] != 'ready' or not result.get('usable'):
+        raise HTTPException(409, 'Measure a stable noise floor first.')
+    from backend import api
+    settings = await api.update_config(api.ConfigUpdate(silence_threshold=result['threshold']))
+    # Same noise floor for automatic end-of-side detection; preserve a louder resume gate.
+    rec._detector.QUIET_DB = result['threshold']
+    rec._detector.LOUD_DB = result['threshold'] + 10
+    result = rec.calibration.applied()
+    return {'calibration': result, 'config': settings}
+
+
 @router.post("/start")
 async def start(body: StartRecording, request: Request):
-    result = await call(local_recorder(request).start, body.title, body.auto_flip, body.side_lengths)
+    rec = local_recorder(request)
+    from backend import api
+    if api.config.learned_silence:
+        rec._detector.QUIET_DB = api.audio_processor.silence_threshold
+        rec._detector.LOUD_DB = api.audio_processor.silence_threshold + 10
+    result = await call(rec.start, body.title, body.auto_flip, body.side_lengths)
     if recognition is not None:
         await call(recognition.begin, result["id"], body.identify_album)
         result["recognition"] = recognition.status()
@@ -138,14 +160,28 @@ async def register_saved(rec, ident):
         return api._serialize_uploaded(session)
 
 
+class FinishRecording(BaseModel):
+    auto_export: bool = False
+    release_id: int | None = Field(default=None, ge=1)
+    output_format: Literal['flac', 'mp3', 'aiff'] = 'flac'
+    restoration_level: int = Field(default=0, ge=0, le=1)
+
+
 @router.post("/stop")
-async def stop(request: Request):
+async def stop(request: Request, body: FinishRecording | None = None):
     rec = local_recorder(request)
     result = await call(rec.stop)
     if result["id"] and result["seconds"] > 0:
         # A failed registration must leave a stopped recorder and a durable original.
         try:
             result["file"] = await register_saved(rec, result["id"])
+            if body and body.auto_export:
+                from backend import api, finish_queue
+                try:
+                    job = finish_queue.enqueue(api.session_store.get(result['id']), body)
+                    result['queued_job'] = {'id': job['id'], 'state': job['state']}
+                except (OSError, ValueError):
+                    result['error'] = 'Audio saved, but it could not be queued. Review and export this recording manually.'
         except HTTPException as exc:
             result["error"] = f"Audio saved. Open it from Saved recordings to retry: {exc.detail}"
     result["recognition"] = recognition.status() if recognition is not None else None
@@ -198,6 +234,10 @@ async def saved(request: Request):
 
 @router.post("/saved/{ident}/open")
 async def open_saved(ident: str, request: Request):
+    local_recorder(request)
+    from backend.finish_queue import busy
+    if busy(ident):
+        raise HTTPException(409, 'This recording is processing in the background. Open it from Library when it is ready.')
     return {"file": await register_saved(local_recorder(request), ident)}
 
 

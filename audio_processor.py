@@ -9,6 +9,7 @@ Supports FLAC, MP3, and AIFF output formats.
 import os
 import re
 import subprocess
+from contextvars import ContextVar
 from pathlib import Path
 from typing import List, Tuple, Optional
 
@@ -22,9 +23,12 @@ from track_boundaries import (
     boundaries_from_gaps,
     envelope_from_pcm,
     gaps_from_envelope,
+    bridge_clicks,
     parse_silence_log,
     refine_cuts,
 )
+
+background_audio = ContextVar("background_audio", default=False)
 
 # Energy envelope: one mono decode at a low sample rate, RMS per 10 ms frame.
 ENVELOPE_SAMPLE_RATE = 8000
@@ -58,6 +62,11 @@ def run_ffmpeg(args: list, *, text: bool = True, **kwargs) -> subprocess.Complet
     All other ``subprocess.run`` kwargs flow through unchanged.
     """
     cmd = [_ffmpeg(), *args]
+    if background_audio.get():
+        # Bound decoder and filter parallelism while CoreAudio captures.
+        cmd = [_ffmpeg(), '-threads', '1', '-filter_threads', '1', '-filter_complex_threads', '1',
+               *args]
+        if os.name == 'posix': cmd = ['/usr/bin/nice', '-n', '10', *cmd]
     if text:
         kwargs.setdefault("encoding", "utf-8")
         kwargs.setdefault("errors", "replace")
@@ -305,7 +314,7 @@ class AudioProcessor:
             "-i",
             str(file_path),
             "-af",
-            f"silencedetect=noise={threshold}dB:duration={min_duration}",
+            f"silencedetect=noise={threshold}dB:duration=0.01",
             "-f",
             "null",
             "-",
@@ -323,7 +332,7 @@ class AudioProcessor:
         if total_duration is None:
             raise ValueError("Could not determine audio duration")
 
-        return gaps, total_duration
+        return bridge_clicks(gaps, total_duration, min_duration), total_duration
 
     # Smart Rescan scan ladder, run over the cached envelope (no decode per
     # pass).  The first pass is permissive enough (-30dB, 0.3s) to surface

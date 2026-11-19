@@ -147,7 +147,7 @@ app = BUNDLE(
     bundle_identifier='app.flipsideflow.desktop',
     info_plist={
         'CFBundleShortVersionString': '0.1.0',
-        'CFBundleVersion': '5',
+        'CFBundleVersion': '6',
         'LSMinimumSystemVersion': '14.0',
         'NSMicrophoneUsageDescription': 'FlipsideFlow records vinyl audio from your selected USB audio interface.',
         'NSHighResolutionCapable': True,

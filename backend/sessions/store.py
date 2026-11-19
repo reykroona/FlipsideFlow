@@ -65,6 +65,7 @@ class SessionStore:
         self,
         ttl_hours: float,
         now: Optional[datetime] = None,
+        exclude: set[str] | None = None,
     ) -> list[str]:
         """Drop Sessions older than ttl_hours, except those mid-Pipeline.
 
@@ -76,7 +77,7 @@ class SessionStore:
         reaped: list[str] = []
         with self._lock:
             for sid, session in list(self._sessions.items()):
-                if session.state == SessionState.PROCESSING:
+                if session.state == SessionState.PROCESSING or sid in (exclude or set()):
                     continue
                 if session.updated_at < cutoff:
                     del self._sessions[sid]

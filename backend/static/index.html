@@ -10,6 +10,11 @@
     <script src="/static/vendor/wavesurfer-7.8.10.min.js"></script>
     <script src="/static/vendor/wavesurfer-regions-7.8.10.min.js"></script>
     <style>
+        .vf-icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em;
+                   fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;
+                   stroke-linejoin: round; flex-shrink: 0; }
+        button > .vf-icon, a > .vf-icon { width: 1.05em; height: 1.05em; }
+        .vf-play .vf-icon { width: 18px; height: 18px; }
         [x-cloak] { display: none !important; }
         /* FlipsideFlow palette: a dark, hardware-panel look (graphite panels, amber brand accent,
            LED green/red for state). Every colour in this page comes from these tokens. */
@@ -357,6 +362,36 @@
     </style>
 </head>
 <body>
+    <!-- Local, monochrome SVG icons; no fonts or remote assets. -->
+    <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;overflow:hidden"><defs>
+<symbol id="vf-icon-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+<symbol id="vf-icon-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+<symbol id="vf-icon-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></symbol>
+<symbol id="vf-icon-record" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/></symbol>
+<symbol id="vf-icon-previous" viewBox="0 0 24 24"><path d="M5 5v14m14-14L8 12l11 7Z"/></symbol>
+<symbol id="vf-icon-next" viewBox="0 0 24 24"><path d="M19 5v14M5 5l11 7-11 7Z"/></symbol>
+<symbol id="vf-icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="vf-icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+<symbol id="vf-icon-warning" viewBox="0 0 24 24"><path d="m12 3 10 18H2Z M12 9v4m0 4v.1"/></symbol>
+<symbol id="vf-icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/></symbol>
+<symbol id="vf-icon-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="var(--vf-card)"/><circle cx="15" cy="17" r="2" fill="var(--vf-card)"/></symbol>
+<symbol id="vf-icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M5.5 7a7.5 7.5 0 0 1 12-2L20 8M4 16l2.5 3a7.5 7.5 0 0 0 12-2"/></symbol>
+<symbol id="vf-icon-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="m8 8 12 12M8 16 20 4"/></symbol>
+<symbol id="vf-icon-delete" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+<symbol id="vf-icon-edit" viewBox="0 0 24 24"><path d="m4 16 12-12 4 4L8 20H4Z M14 6l4 4"/></symbol>
+<symbol id="vf-icon-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/></symbol>
+<symbol id="vf-icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+<symbol id="vf-icon-zoom-in" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M7 10.5h7m-3.5-3.5v7"/></symbol>
+<symbol id="vf-icon-zoom-out" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M7 10.5h7"/></symbol>
+<symbol id="vf-icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="vf-icon-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M6 12a6 6 0 0 1 6-6m0 12a6 6 0 0 0 6-6"/></symbol>
+<symbol id="vf-icon-align" viewBox="0 0 24 24"><path d="M4 4v16M20 4v16M8 7h8M8 12h6m-6 5h8"/></symbol>
+<symbol id="vf-icon-volume" viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3ZM16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></symbol>
+<symbol id="vf-icon-swap" viewBox="0 0 24 24"><path d="M8 3v18m-4-4 4 4 4-4M16 21V3m-4 4 4-4 4 4"/></symbol>
+<symbol id="vf-icon-arrow-left" viewBox="0 0 24 24"><path d="M20 12H4m6-6-6 6 6 6"/></symbol>
+<symbol id="vf-icon-arrow-right" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+<symbol id="vf-icon-external" viewBox="0 0 24 24"><path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/></symbol>
+</defs></svg>
     <div x-data="vinylApp()" x-init="init()" class="min-h-screen">
         <!-- Toasts: stacked bottom-right; info/success auto-dismiss, warnings/errors stay.
              The icon and the hidden type word keep the type from relying on colour alone.
@@ -369,10 +404,10 @@
                 <div class="toast" :class="'toast-' + toast.type"
                      @mouseenter="pauseToast(toast.id)" @mouseleave="resumeToast(toast.id)"
                      @focusin="pauseToast(toast.id)" @focusout="resumeToast(toast.id)">
-                    <span class="toast-icon" aria-hidden="true" x-text="toastIcon(toast.type)"></span>
+                    <span class="toast-icon" aria-hidden="true" ><svg class="vf-icon" aria-hidden="true" focusable="false"><use :href="'#vf-icon-' + toastIcon(toast.type)"></use></svg></span>
                     <p class="flex-1 min-w-0 break-words"><span class="sr-only" x-text="toast.type + ': '"></span><span x-text="toast.message"></span></p>
                     <button x-show="toast.action" x-cloak type="button" class="toast-action" @click="runToastAction(toast.id)" x-text="toast.action?.label"></button>
-                    <button type="button" class="toast-close" aria-label="Dismiss notification" @click="dismissToast(toast.id)">&times;</button>
+                    <button type="button" class="toast-close" aria-label="Dismiss notification" @click="dismissToast(toast.id)"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-close"></use></svg></button>
                 </div>
             </template>
         </div>
@@ -383,14 +418,14 @@
                 <span class="vf-brand">FLIPSIDE<b>FLOW</b></span>
                 <nav class="vf-tabs" role="tablist" aria-label="Views">
                     <button x-show="recordingEnabled" x-cloak role="tab" class="vf-tab" :aria-selected="view === 'record'" @click="setView('record')">
-                        <span x-show="recordingActive" x-cloak class="vf-bad">●</span> Record
+                        <span x-show="recordingActive" x-cloak class="vf-bad"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-record"></use></svg></span> Record
                     </button>
                     <button role="tab" class="vf-tab" :aria-selected="view === 'library'" @click="setView('library')">
                         Library <span class="opacity-70" x-text="library.albums.length ? '· ' + library.albums.length : ''"></span>
                     </button>
                     <button role="tab" class="vf-tab" :aria-selected="view === 'workbench'" @click="setView('workbench')" title="Every file, the waveform editor and all the detection tools">Workbench</button>
                 </nav>
-                <button @click="showSettings = !showSettings" class="vf-btn vf-btn-sm vf-btn-ghost" aria-label="Settings">⚙ Settings</button>
+                <button @click="showSettings = !showSettings" class="vf-btn vf-btn-sm vf-btn-ghost" aria-label="Settings"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-settings"></use></svg> Settings</button>
             </div>
         </header>
 
@@ -488,7 +523,7 @@
                     <div class="space-y-3">
                         <img x-show="flow.release?.cover_url" :src="flow.release?.cover_url || ''" alt="" class="vf-cover" referrerpolicy="no-referrer">
                         <div x-show="!flow.release?.cover_url" class="vf-sleeve" aria-hidden="true"></div>
-                        <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost w-full" @click="flowBackToAdd()" x-show="!recordingActive">← Pick another record</button>
+                        <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost w-full" @click="flowBackToAdd()" x-show="!recordingActive"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-arrow-left"></use></svg> Pick another record</button>
                     </div>
                     <div class="space-y-5 min-w-0">
                         <div>
@@ -537,7 +572,7 @@
                             </div>
                             <div class="flex gap-2">
                                 <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" @click="flowApplyInput()" :disabled="recordingBusy || recordingInput.device === ''">Use this input</button>
-                                <button type="button" class="vf-btn vf-btn-sm" @click="refreshRecordingDevices()" :disabled="recordingInputLocked">↻ Refresh</button>
+                                <button type="button" class="vf-btn vf-btn-sm" @click="refreshRecordingDevices()" :disabled="recordingInputLocked"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-refresh"></use></svg> Refresh</button>
                             </div>
                         </div>
 
@@ -545,7 +580,7 @@
                             <template x-for="chip in flowSideChips" :key="chip.label">
                                 <span class="vf-side" :class="chip.state">
                                     <span x-show="chip.state === 'live'" class="vf-dot"></span>
-                                    <span x-show="chip.state === 'done'">✓</span>
+                                    <span x-show="chip.state === 'done'"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg></span>
                                     <span x-text="`Side ${chip.label}`"></span>
                                     <span x-show="chip.seconds" class="opacity-70" x-text="formatDuration(chip.seconds)"></span>
                                 </span>
@@ -598,18 +633,44 @@
                                 <span class="vf-dot"></span> Start recording <span class="vf-kbd">Space</span>
                             </button>
                             <button type="button" x-show="recorder.state === 'recording'" x-cloak class="vf-btn vf-btn-lg vf-btn-primary" @click="flowFlip()" :disabled="recordingBusy">
-                                ⏸ Flip side <span class="vf-kbd">Space</span>
+                                <svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-pause"></use></svg> Flip side <span class="vf-kbd">Space</span>
                             </button>
                             <button type="button" x-show="recorder.state === 'paused'" x-cloak class="vf-btn vf-btn-lg vf-btn-primary" @click="flowResume()" :disabled="recordingBusy">
-                                ▶ Resume now <span class="vf-kbd">Space</span>
+                                <svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-play"></use></svg> Resume now <span class="vf-kbd">Space</span>
                             </button>
-                            <button type="button" x-show="recordingActive" x-cloak class="vf-btn vf-btn-lg" @click="flowFinish()" :disabled="recordingBusy">■ Finish record</button>
+                            <button type="button" x-show="recordingActive" x-cloak class="vf-btn vf-btn-lg" @click="flowFinish()" :disabled="recordingBusy"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-stop"></use></svg> Finish record</button>
                             <span x-show="recordingBusy" class="text-xs text-muted" role="status">Working…</span>
                         </div>
                         <label class="flex items-center gap-2 text-sm text-secondary">
                             <input type="checkbox" x-model="flow.autoFlip" :disabled="recordingActive">
                             Pause by itself at the end of each side, and carry on when the needle drops
                         </label>
+                        <div class="vf-panel p-4 space-y-3">
+                            <label class="flex items-center gap-2 text-sm text-secondary">
+                                <input type="checkbox" x-model="autoExportRecordings" :disabled="recordingActive">
+                                Auto-export clear matches after finishing (90+ match quality)
+                            </label>
+                            <p class="text-xs text-muted">Checks album identity, track lengths and silence at splits. AudD receives a 10-second excerpt if identification is needed. Uncertain recordings go to Library → Needs review. Start the next record while processing runs.</p>
+                            <label x-show="autoExportRecordings" class="text-sm text-secondary">Export format
+                                <select x-model="outputFormat" :disabled="recordingActive" class="vf-input mt-1"><option value="flac">FLAC</option><option value="mp3">MP3</option><option value="aiff">AIFF</option></select>
+                            </label>
+                            <label x-show="autoExportRecordings" class="flex items-center gap-2 text-sm text-secondary"><input type="checkbox" :checked="restorationLevel === 1" @change="restorationLevel = $event.target.checked ? 1 : 0" :disabled="recordingActive">Light audio cleanup</label>
+                            <button type="button" class="vf-btn vf-btn-sm" x-show="pendingFinishJobs.length" @click="setView('library')" x-text="`${activeFinishJobs.length} processing · ${reviewFinishJobs.length} need review`"></button>
+                            <p class="text-sm vf-warn" x-show="finishQueueError" x-text="finishQueueError"></p>
+                        </div>
+                        <details class="vf-panel p-4 space-y-3">
+                            <summary class="cursor-pointer text-sm text-secondary">Learn silence</summary>
+                            <p class="text-sm text-secondary">With input monitoring on, put the needle in a spinning groove with no music for 10 seconds. Keep the same input gain. Brief clicks are tolerated; avoid a run-out with loud repeating clicks.</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" class="vf-btn vf-btn-sm" @click="learnSilence()" :disabled="recordingBusy || recorder.state !== 'monitoring' || recorder.calibration?.state === 'listening'">Measure noise floor</button>
+                                <button type="button" class="vf-btn vf-btn-sm" x-show="recorder.calibration?.state === 'listening'" @click="learnSilence('cancel')">Cancel</button>
+                                <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" x-show="recorder.calibration?.state === 'ready'" @click="learnSilence('apply')" :disabled="recordingActive">Apply threshold</button>
+                            </div>
+                            <p class="text-sm text-secondary" role="status" x-show="recorder.calibration?.state === 'listening'" x-text="`Listening… ${recorder.calibration?.seconds || 0} / 10 seconds`"></p>
+                            <p class="text-sm text-secondary" x-show="recorder.calibration?.threshold != null" x-text="`Suggested silence threshold: ${recorder.calibration?.threshold} dBFS`"></p>
+                            <p class="text-sm text-muted" x-text="recorder.calibration?.message || 'Measures levels locally. No audio is saved or uploaded.'"></p>
+                            <p class="text-sm vf-warn" x-show="silenceLearningError" x-text="silenceLearningError"></p>
+                        </details>
                         <p x-show="recordingError" x-cloak role="alert" class="text-sm rounded-lg p-3 vf-bad" style="background: var(--vf-bad-soft)" x-text="recordingError"></p>
                     </div>
                 </div>
@@ -656,7 +717,7 @@
                             </button>
                         </template>
                     </div>
-                    <button type="button" class="vf-btn" @click="nameItMyself()" :disabled="analyzing">✎ Name it myself</button>
+                    <button type="button" class="vf-btn" @click="nameItMyself()" :disabled="analyzing"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-edit"></use></svg> Name it myself</button>
                 </div>
 
                 <!-- Typed names -->
@@ -675,7 +736,7 @@
                 <!-- Status -->
                 <div x-show="analyzing" x-cloak class="flex items-center gap-3 text-secondary" role="status"><span class="spinner"></span> Finding the tracks…</div>
                 <div x-show="!analyzing && detectedTracks.length" x-cloak class="flex flex-wrap items-center gap-3 text-sm">
-                    <span x-show="flowChecksOk && !isManualRelease" class="vf-ok" x-text="`✓ All ${activeTrackCount} tracks match the Discogs lengths.`"></span>
+                    <span x-show="flowChecksOk && !isManualRelease" class="vf-ok" x-text="`All ${activeTrackCount} tracks match the Discogs lengths.`"></span>
                     <span x-show="!flowChecksOk && !isManualRelease && selectedRelease" class="vf-warn">Some splits don't match the Discogs lengths. Listen to the marked tracks, or use Fix splits.</span>
                     <span x-show="isManualRelease" class="text-secondary" x-text="`${activeTrackCount} tracks found by the gaps between songs. Type their names, or leave them as Track 1, 2…`"></span>
                 </div>
@@ -689,7 +750,7 @@
                     <template x-for="row in flowTracks" :key="row.idx">
                         <div class="vf-track" :class="{ playing: isBarTrack(`rev-${row.idx}`) && bar.playing, 'opacity-40': row.track.ignored }">
                             <button type="button" class="vf-play" @click="isBarTrack(`rev-${row.idx}`) ? toggleBar() : playReviewTrack(row)" :disabled="row.track.ignored"
-                                    :aria-label="`Play ${row.title}`" x-text="isBarTrack(`rev-${row.idx}`) && bar.playing ? '❚❚' : '▶'"></button>
+                                    :aria-label="`Play ${row.title}`" ><svg class="vf-icon" aria-hidden="true" focusable="false"><use :href="'#vf-icon-' + (isBarTrack(`rev-${row.idx}`) && bar.playing ? 'pause' : 'play')"></use></svg></button>
                             <span class="font-mono text-xs text-muted" x-text="row.position"></span>
                             <template x-if="isManualRelease">
                                 <input type="text" x-model="selectedRelease.tracks[row.idx].title" :placeholder="`Track ${row.idx + 1}`" maxlength="300" class="vf-input py-1.5" :aria-label="`Name of track ${row.idx + 1}`">
@@ -698,7 +759,7 @@
                             <span class="font-mono text-xs text-secondary" x-text="formatDuration(row.track.duration)"></span>
                             <span class="text-xs w-16 text-right" :class="row.check === 'ok' ? 'vf-ok' : row.check === 'check' ? 'vf-warn' : 'text-muted'"
                                   :title="row.expected ? `Discogs: ${formatDuration(row.expected)}` : ''"
-                                  x-text="row.check === 'ok' ? '✓' : row.check === 'check' ? `listen (${formatDuration(row.expected)})` : ''"></span>
+                                  x-text="row.check === 'ok' ? 'Match' : row.check === 'check' ? `listen (${formatDuration(row.expected)})` : ''"></span>
                         </div>
                     </template>
                 </div>
@@ -734,11 +795,11 @@
                         <div x-show="!selectedRelease?.cover_url" class="vf-sleeve"></div>
                     </div>
                     <div class="flex-1 min-w-0 space-y-2">
-                        <span class="vf-label vf-ok">✓ Saved to your library</span>
+                        <span class="vf-label vf-ok"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> Saved to your library</span>
                         <h2 class="text-2xl text-primary" x-text="selectedRelease ? `${selectedRelease.artist} — ${selectedRelease.title}` : 'Exported'"></h2>
                         <p class="text-xs font-mono text-muted break-all" x-text="flow.donePath"></p>
                         <div class="flex flex-wrap gap-2 pt-2">
-                            <button type="button" class="vf-btn vf-btn-primary" @click="flowRecordNext()">● Record the next one</button>
+                            <button type="button" class="vf-btn vf-btn-primary" @click="flowRecordNext()"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-record"></use></svg> Record the next one</button>
                             <button type="button" class="vf-btn" @click="flowOpenInLibrary()">Open in Library</button>
                             <button type="button" class="vf-btn" x-show="flow.doneAlbumId" @click="revealInFinder(flow.doneAlbumId)">Show in Finder</button>
                         </div>
@@ -755,9 +816,25 @@
                     <p class="text-sm text-muted font-mono" x-text="`${library.albums.length} album${library.albums.length === 1 ? '' : 's'} · ${libraryTrackCount} track${libraryTrackCount === 1 ? '' : 's'}`"></p>
                 </div>
                 <input type="search" x-model="library.filter" class="vf-input" style="max-width: 18rem" placeholder="Filter albums and tracks" aria-label="Filter the library">
-                <button type="button" class="vf-btn vf-btn-sm" @click="loadLibrary()" :disabled="library.loading">↻ Refresh</button>
+                <button type="button" class="vf-btn vf-btn-sm" @click="loadLibrary()" :disabled="library.loading"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-refresh"></use></svg> Refresh</button>
             </div>
 
+            <section x-show="pendingFinishJobs.length || finishQueueError" class="vf-panel p-4 space-y-4">
+                <h3 class="text-lg text-primary">Processing &amp; needs review</h3>
+                <p class="text-sm vf-warn" x-show="finishQueueError" x-text="finishQueueError"></p>
+                <template x-for="job in pendingFinishJobs" :key="job.id">
+                    <div class="flex items-center gap-4 border-b pb-3" style="border-color: var(--vf-line)">
+                        <svg class="vf-icon text-secondary" aria-hidden="true"><use :href="job.state === 'needs_review' ? '#vf-icon-edit' : '#vf-icon-clock'"></use></svg>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-primary truncate" x-text="job.title"></p>
+                            <p class="text-sm text-secondary" x-text="job.state === 'needs_review' ? 'Needs review' : 'Processing in background'"></p>
+                            <p class="text-xs text-muted" x-text="job.message"></p>
+                            <p class="text-xs text-muted" x-show="job.score != null" x-text="`Match quality ${job.score}/100 · not a probability`"></p>
+                        </div>
+                        <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" x-show="job.state === 'needs_review'" @click="openFinishReview(job)" :disabled="analyzing || isProcessing">Review splits &amp; album</button>
+                    </div>
+                </template>
+            </section>
             <div x-show="unfinishedRecordings.length" x-cloak class="vf-panel p-4 space-y-3">
                 <p class="vf-label vf-warn">Recorded, not exported yet</p>
                 <div class="flex gap-3 overflow-x-auto pb-1">
@@ -774,10 +851,10 @@
             </div>
 
             <p x-show="library.error && !library.albums.length" x-cloak class="text-secondary" x-text="library.error"></p>
-            <div x-show="library.loaded && !library.albums.length && !library.error" x-cloak class="vf-panel p-10 text-center space-y-3">
+            <div x-show="library.loaded && !library.albums.length && !library.error && !pendingFinishJobs.length && !unfinishedRecordings.length" x-cloak class="vf-panel p-10 text-center space-y-3">
                 <p class="text-xl text-primary">Nothing here yet</p>
                 <p class="text-secondary">Every record you export lands here, ready to play.</p>
-                <button type="button" x-show="recordingEnabled" class="vf-btn vf-btn-primary" @click="setView('record')">● Record a record</button>
+                <button type="button" x-show="recordingEnabled" class="vf-btn vf-btn-primary" @click="setView('record')"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-record"></use></svg> Record a record</button>
             </div>
 
             <div class="grid gap-6" :class="libraryAlbum ? 'lg:grid-cols-[minmax(0,1fr)_420px]' : ''">
@@ -807,15 +884,15 @@
                                 </div>
                             </div>
                             <div class="flex flex-wrap gap-2">
-                                <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" @click="playAlbum(libraryAlbum)">▶ Play</button>
+                                <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" @click="playAlbum(libraryAlbum)"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-play"></use></svg> Play</button>
                                 <button type="button" class="vf-btn vf-btn-sm" @click="revealInFinder(libraryAlbum.id)">Show in Finder</button>
                                 <button type="button" class="vf-btn vf-btn-sm" x-show="(libraryAlbum.sources || []).some(s => s.available)" @click="resplitAlbum(libraryAlbum)" title="Open the original recording to split it again">Re-split</button>
-                                <a x-show="libraryAlbum.release_id" :href="`https://www.discogs.com/release/${libraryAlbum.release_id}`" target="_blank" rel="noopener noreferrer" class="vf-btn vf-btn-sm vf-btn-ghost">Discogs ↗</a>
+                                <a x-show="libraryAlbum.release_id" :href="`https://www.discogs.com/release/${libraryAlbum.release_id}`" target="_blank" rel="noopener noreferrer" class="vf-btn vf-btn-sm vf-btn-ghost">Discogs <svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-external"></use></svg></a>
                             </div>
                             <div class="space-y-0.5 max-h-[55vh] overflow-y-auto -mx-2">
                                 <template x-for="(t, i) in libraryAlbum.tracks" :key="t.id">
                                     <div class="vf-track cursor-pointer" style="grid-template-columns: 34px 40px 1fr auto;" :class="{ playing: isBarTrack(t.id) }" @click="isBarTrack(t.id) ? toggleBar() : playAlbum(libraryAlbum, i)">
-                                        <span class="vf-play" x-text="isBarTrack(t.id) && bar.playing ? '❚❚' : '▶'"></span>
+                                        <span class="vf-play" ><svg class="vf-icon" aria-hidden="true" focusable="false"><use :href="'#vf-icon-' + (isBarTrack(t.id) && bar.playing ? 'pause' : 'play')"></use></svg></span>
                                         <span class="font-mono text-xs text-muted" x-text="t.position || t.track || i + 1"></span>
                                         <span class="truncate" x-text="t.title"></span>
                                         <span class="font-mono text-xs text-muted" x-text="formatDuration(t.duration)"></span>
@@ -905,7 +982,7 @@
         <!-- Discogs Not Configured Warning (for users who skip setup) -->
         <div x-show="view === 'workbench' && !discogsConfigured && !setupRequired" x-cloak class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
             <div class="p-4 rounded-lg border-2 flex items-center gap-3" style="background-color: rgba(217, 64, 50, 0.1); border-color: var(--vf-bad);">
-                <span class="text-2xl">⚠️</span>
+                <span class="text-2xl"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-warning"></use></svg></span>
                 <div>
                     <p class="font-semibold text-primary">Discogs API not configured</p>
                     <p class="text-sm text-secondary">
@@ -952,7 +1029,7 @@
                                 </div>
                             </div>
                             <div x-show="discogsConfigured" class="text-xs" style="color: var(--vf-ok);">
-                                ✓ Connected to Discogs
+                                <svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> Connected to Discogs
                             </div>
                         </div>
                     </div>
@@ -1015,7 +1092,7 @@
              :style="`left: ${contextMenu.x}px; top: ${contextMenu.y}px;`">
             <button @click="splitAtContextMenu()"
                     class="w-full px-4 py-2 text-left text-primary hover:bg-page flex items-center gap-2">
-                <span>✂️</span>
+                <span><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-scissors"></use></svg></span>
                 <span>Add split</span>
             </button>
         </div>
@@ -1030,12 +1107,12 @@
              :style="`left: ${regionContextMenu.x}px; top: ${regionContextMenu.y}px;`">
             <button @click="splitAtRegionContextMenu()"
                     class="w-full px-4 py-2 text-left text-primary hover:bg-page flex items-center gap-2">
-                <span>✂️</span>
+                <span><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-scissors"></use></svg></span>
                 <span>Add split</span>
             </button>
             <button @click="deleteTrackFromRegionMenu()"
                     class="w-full px-4 py-2 text-left text-primary hover:bg-page flex items-center gap-2">
-                <span>🗑️</span>
+                <span><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-delete"></use></svg></span>
                 <span>Delete Track</span>
             </button>
         </div>
@@ -1063,7 +1140,7 @@
                                     class="px-3 py-1 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
                                     :class="importTab === 'record' ? 'btn-primary font-semibold' : 'text-secondary hover:bg-page'"
                                     :style="importTab === 'record' ? '' : 'background-color: var(--vf-raised);'">
-                                <span x-text="recordingActive ? '● Recording' : 'Record'"></span>
+                                <span x-text="recordingActive ? 'Recording' : 'Record'"></span>
                             </button>
                         </div>
                     </div>
@@ -1072,7 +1149,7 @@
                     <div x-show="recordingEnabled && importTab === 'record'" x-cloak class="space-y-3">
                         <div class="flex items-center justify-between gap-2">
                             <p class="text-sm text-secondary">Stereo · 24-bit WAV</p>
-                            <button @click="refreshRecordingDevices()" :disabled="recordingInputLocked" class="text-xs px-2 py-1 rounded bg-page disabled:opacity-50">↻ Refresh inputs</button>
+                            <button @click="refreshRecordingDevices()" :disabled="recordingInputLocked" class="text-xs px-2 py-1 rounded bg-page disabled:opacity-50"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-refresh"></use></svg> Refresh inputs</button>
                         </div>
                         <label class="block text-xs text-secondary">Audio input
                             <select x-model.number="recordingInput.device" @change="recordingDeviceChanged()" :disabled="recordingInputLocked" class="mt-1 w-full p-2 rounded border bg-card text-primary disabled:opacity-60">
@@ -1128,7 +1205,7 @@
                             <button x-show="!recordingActive && recorder.state !== 'monitoring'" @click="recordingAction('monitor', recordingInput)"
                                     :disabled="recordingBusy || recordingInput.device === ''" class="px-3 py-2 rounded btn-primary text-sm disabled:opacity-50">Check levels</button>
                             <button x-show="recorder.state === 'monitoring'" @click="recordingAction('start', {title: recordingTitle, identify_album: identifyAlbum})" :disabled="recordingBusy"
-                                    class="px-3 py-2 rounded text-white text-sm disabled:opacity-50" style="background:var(--vf-bad)">● Record</button>
+                                    class="px-3 py-2 rounded text-white text-sm disabled:opacity-50" style="background:var(--vf-bad)"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-record"></use></svg> Record</button>
                             <button x-show="recorder.state === 'recording'" @click="recordingAction('pause', {side_flip: true})" :disabled="recordingBusy" class="px-3 py-2 rounded btn-primary text-sm disabled:opacity-50">Pause / flip side</button>
                             <button x-show="recorder.state === 'recording'" @click="recordingAction('pause')" :disabled="recordingBusy" class="px-3 py-2 rounded bg-page text-sm disabled:opacity-50">Pause</button>
                             <button x-show="recorder.state === 'paused'" @click="recordingAction('resume')" :disabled="recordingBusy" class="px-3 py-2 rounded btn-primary text-sm disabled:opacity-50">Resume</button>
@@ -1222,7 +1299,7 @@
                             <p class="text-xs text-secondary flex-1 min-w-0 truncate" :title="importInfo.dir" x-text="importInfo.dir"></p>
                             <button x-show="importInfo.enabled" @click="loadImportList()" :disabled="importLoading" title="Refresh the folder list"
                                     class="px-2 py-1 rounded text-xs text-secondary hover:bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1" style="background-color: var(--vf-raised);"
-                                    :class="{'opacity-60 cursor-not-allowed': importLoading}">↻ Refresh</button>
+                                    :class="{'opacity-60 cursor-not-allowed': importLoading}"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-refresh"></use></svg> Refresh</button>
                         </div>
 
                         <p x-show="importInfo.error" x-cloak class="mb-2 p-2 rounded-lg text-sm text-primary" style="background-color: rgba(229, 161, 0, 0.15);" x-text="importInfo.error"></p>
@@ -1280,7 +1357,7 @@
                         :class="{'dragging': dragging}"
                         class="file-upload-zone rounded-lg p-6 text-center cursor-pointer"
                     >
-                        <p class="text-secondary">📤 Drag & Drop audio files here</p>
+                        <p class="text-secondary"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-upload"></use></svg> Drag & Drop audio files here</p>
                         <p class="text-muted text-sm mt-1">WAV, AIFF supported — or click to browse</p>
                         <input type="file" x-ref="fileInput" @change="handleFileSelect($event)" accept=".wav,.aiff,.aif" multiple class="hidden">
                     </div>
@@ -1323,7 +1400,7 @@
                                             <p class="text-xs text-muted" x-text="formatSize(file.size) + ' • ' + formatDuration(file.duration)"></p>
                                             <p class="text-xs mt-1" :class="statusClass(file.status)" x-text="file.status"></p>
                                         </div>
-                                        <button @click.stop="removeFile(file.id)" class="ml-2 btn-danger hover:opacity-80 px-2 py-1 rounded text-xs">✕</button>
+                                        <button :aria-label="`Remove ${file.filename} from queue`" @click.stop="removeFile(file.id)" class="ml-2 btn-danger hover:opacity-80 px-2 py-1 rounded text-xs"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-close"></use></svg></button>
                                     </div>
                                     <template x-if="file.id === currentFileId && processingProgress > 0">
                                         <div class="mt-1">
@@ -1368,12 +1445,12 @@
                         <button x-show="currentFile && !selectedRelease" x-cloak @click="nameItMyself()"
                                 :disabled="analyzing || currentFileExporting"
                                 class="mt-3 ml-1 px-3 py-2 rounded-lg text-sm text-primary hover:bg-page border" style="border-color: var(--vf-line);"
-                                :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">✎ Name it myself</button>
+                                :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-edit"></use></svg> Name it myself</button>
 
                         <!-- Re-Analyze Button -->
                         <template x-if="detectedTracks.length > 0 && !selectedRelease">
                             <button @click="reanalyzeFile()" :disabled="analyzing || currentFileExporting" class="mt-3 px-4 py-2 btn-primary rounded-lg font-semibold text-sm" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">
-                                <span x-show="!analyzing">🔄 Re-Analyze Tracks</span>
+                                <span x-show="!analyzing"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-refresh"></use></svg> Re-Analyze Tracks</span>
                                 <span x-show="analyzing" class="flex items-center gap-2">
                                     <div class="spinner"></div>
                                     Detecting tracks…
@@ -1388,7 +1465,7 @@
                                 <div class="flex items-center gap-2">
                                     <input type="number" min="1" max="99" x-model="expectedTracks" placeholder="e.g. 6" class="w-20 px-3 py-2 border focus-primary rounded-lg text-sm" style="border-color: var(--vf-line);" @keyup.enter="smartRescan(expectedTracks)">
                                     <button @click="smartRescan(expectedTracks)" :disabled="analyzing || currentFileExporting" class="px-4 py-2 btn-primary rounded-lg font-semibold text-sm" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">
-                                        <span x-show="!analyzing">🎯 Smart Rescan</span>
+                                        <span x-show="!analyzing"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-search"></use></svg> Smart Rescan</span>
                                         <span x-show="analyzing" class="flex items-center gap-2">
                                             <div class="spinner"></div>
                                             Rescanning…
@@ -1429,7 +1506,7 @@
         <!-- Discogs search: starts by itself when a file is selected; swapped for the release card once one is picked -->
         <div id="discogs-search" x-show="currentFile && discogsConfigured && !selectedRelease" x-cloak class="max-w-7xl mx-auto px-4 pb-2 sm:px-6 lg:px-8">
             <div class="bg-card rounded-lg shadow p-6">
-                <h3 class="text-lg font-semibold text-primary mb-1">🔍 Find the release on Discogs</h3>
+                <h3 class="text-lg font-semibold text-primary mb-1"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-search"></use></svg> Find the release on Discogs</h3>
                 <p class="text-sm text-secondary mb-4">Searched from the file name. Pick the release to name and tag the tracks.</p>
                 <div class="flex gap-2 mb-4">
                     <input id="discogs-query" type="text" x-model="searchQuery" @keyup.enter="searchDiscogs()" aria-label="Search Discogs" placeholder="Enter artist or album name..." class="flex-1 min-w-0 px-4 py-2 border focus-primary rounded-lg" style="border-color: var(--vf-line);">
@@ -1487,10 +1564,10 @@
                                 <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: var(--vf-raised); color: var(--vf-muted);">checking lengths…</span>
                             </template>
                             <template x-if="result.tracks && releaseDurationInfo(result).status === 'full'">
-                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: var(--vf-ok-soft); color: var(--vf-ok);">⏱ Track lengths</span>
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: var(--vf-ok-soft); color: var(--vf-ok);"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-clock"></use></svg> Track lengths</span>
                             </template>
                             <template x-if="result.tracks && releaseDurationInfo(result).status === 'partial'">
-                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: rgba(229, 161, 0, 0.15); color: var(--vf-amber-text);" x-text="`⏱ ${releaseDurationInfo(result).withDuration}/${releaseDurationInfo(result).total} lengths`"></span>
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: rgba(229, 161, 0, 0.15); color: var(--vf-amber-text);" x-text="`${releaseDurationInfo(result).withDuration}/${releaseDurationInfo(result).total} lengths`"></span>
                             </template>
                             <template x-if="result.tracks && releaseDurationInfo(result).status === 'none'">
                                 <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: var(--vf-raised); color: var(--vf-muted);">No track lengths</span>
@@ -1501,7 +1578,7 @@
                                     <span x-text="fitText(cardFit(result))"></span>
                                 </p>
                             </template>
-                            <a @click.stop :href="`https://www.discogs.com${result.uri}`" target="_blank" rel="noopener noreferrer" class="text-xs underline hover:no-underline mt-2 inline-block" style="color: var(--vf-amber-text);">View on Discogs ↗</a>
+                            <a @click.stop :href="`https://www.discogs.com${result.uri}`" target="_blank" rel="noopener noreferrer" class="text-xs underline hover:no-underline mt-2 inline-block" style="color: var(--vf-amber-text);">View on Discogs <svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-external"></use></svg></a>
                         </div>
                     </template>
                 </div>
@@ -1515,8 +1592,8 @@
         <div id="release-card" x-show="currentFile && selectedRelease" x-cloak class="max-w-7xl mx-auto px-4 pb-2 sm:px-6 lg:px-8">
             <div class="bg-card rounded-lg shadow p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-primary" x-text="isManualRelease ? 'Album details' : '💿 Release'"></h3>
-                    <button @click="changeRelease()" :disabled="analyzing || currentFileExporting" class="px-4 py-2 rounded-lg text-primary hover:bg-page" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}" style="background-color: var(--vf-raised);">← Change release</button>
+                    <h3 class="text-lg font-semibold text-primary" x-text="isManualRelease ? 'Album details' : 'Release'"></h3>
+                    <button @click="changeRelease()" :disabled="analyzing || currentFileExporting" class="px-4 py-2 rounded-lg text-primary hover:bg-page" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}" style="background-color: var(--vf-raised);"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-arrow-left"></use></svg> Change release</button>
                 </div>
                 <!-- Named by hand (no Discogs match): artist, album, year and one name per track -->
                 <template x-if="isManualRelease">
@@ -1566,7 +1643,7 @@
                         <!-- var(--vf-amber-text): 5.2:1 on this amber tint (the cards' var(--vf-amber) would be 1.96:1) -->
                         <a x-show="selectedRelease?.id" :href="selectedRelease ? `https://www.discogs.com/release/${selectedRelease.id}` : '#'"
                            target="_blank" rel="noopener noreferrer" data-testid="release-discogs-link"
-                           class="mt-1 inline-block text-sm underline hover:no-underline" style="color: var(--vf-amber-text);">View on Discogs ↗</a>
+                           class="mt-1 inline-block text-sm underline hover:no-underline" style="color: var(--vf-amber-text);">View on Discogs <svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-external"></use></svg></a>
                     </div>
                 </div>
 
@@ -1585,9 +1662,9 @@
                                     class="px-4 py-2 rounded-lg border-2 transition text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#F0B323]"
                                     :style="sidesEqualSelection(preset.sides) ? 'border-color: var(--vf-amber); background-color: rgba(229, 161, 0, 0.1);' : 'border-color: var(--vf-line);'"
                                     :class="{'hover:bg-card': !sidesEqualSelection(preset.sides), 'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">
-                                <span class="text-sm font-semibold text-primary"><span x-show="sidesEqualSelection(preset.sides)" aria-hidden="true">✓ </span><span x-text="preset.label"></span></span>
+                                <span class="text-sm font-semibold text-primary"><span x-show="sidesEqualSelection(preset.sides)" aria-hidden="true"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> </span><span x-text="preset.label"></span></span>
                                 <span class="text-xs text-secondary ml-1" x-text="`${preset.trackCount} tracks • ${preset.totalSeconds !== null ? formatDuration(preset.totalSeconds) : 'length unknown'}`"></span>
-                                <span x-show="isMatchedScope(preset.sides)" class="block text-xs font-medium" style="color: var(--vf-ok);">✓ matches recording length</span>
+                                <span x-show="isMatchedScope(preset.sides)" class="block text-xs font-medium" style="color: var(--vf-ok);"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> matches recording length</span>
                             </button>
                         </template>
                     </div>
@@ -1600,9 +1677,9 @@
                                     class="px-4 py-2 rounded-lg border-2 transition text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#F0B323]"
                                     :style="selectedSides.includes(g.side) ? 'border-color: var(--vf-amber); background-color: rgba(229, 161, 0, 0.1);' : 'border-color: var(--vf-line);'"
                                     :class="{'hover:bg-card': !selectedSides.includes(g.side) && sideChips.length > 1, 'opacity-60 cursor-not-allowed': analyzing || currentFileExporting || sideChips.length <= 1}">
-                                <span class="text-sm font-semibold text-primary"><span x-show="selectedSides.includes(g.side) && sideChips.length > 1" aria-hidden="true">✓ </span><span x-text="sideLabel(g.side)"></span></span>
+                                <span class="text-sm font-semibold text-primary"><span x-show="selectedSides.includes(g.side) && sideChips.length > 1" aria-hidden="true"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> </span><span x-text="sideLabel(g.side)"></span></span>
                                 <span class="text-xs text-secondary ml-1" x-text="`${g.tracks.length} tracks • ${g.totalSeconds !== null ? formatDuration(g.totalSeconds) : 'length unknown'}`"></span>
-                                <span x-show="isMatchedScope([g.side]) && sideChips.length > 1" class="block text-xs font-medium" style="color: var(--vf-ok);">✓ matches recording length</span>
+                                <span x-show="isMatchedScope([g.side]) && sideChips.length > 1" class="block text-xs font-medium" style="color: var(--vf-ok);"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> matches recording length</span>
                             </button>
                         </template>
                     </div>
@@ -1610,7 +1687,7 @@
                         <button type="button" @click="snapToDiscogs()" :disabled="analyzing || currentFileExporting || targetTracks.length < 1"
                                 class="px-3 py-1.5 btn-primary rounded-lg text-sm font-semibold"
                                 :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting || targetTracks.length < 1}"
-                                title="Place the boundaries using the Discogs track lengths of the chosen sides">🧲 Snap to Discogs</button>
+                                title="Place the boundaries using the Discogs track lengths of the chosen sides"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-align"></use></svg> Snap to Discogs</button>
                         <p class="text-xs text-secondary flex-1" style="min-width: 12rem;">Changing the sides re-runs track detection. Snap to Discogs places the boundaries again from the Discogs lengths (Undo brings your boundaries back).</p>
                     </div>
                 </div>
@@ -1633,16 +1710,16 @@
                     <h3 class="text-2xl font-bold text-primary">Waveform Editor</h3>
                     <div class="flex flex-wrap items-center gap-2">
                         <label class="flex items-center gap-2 mr-2 text-sm text-secondary" title="Volume for every player in FlipsideFlow">
-                            <span aria-hidden="true">🔈</span>
+                            <span aria-hidden="true"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-volume"></use></svg></span>
                             <input type="range" min="0" max="1" step="0.05" :value="playbackVolume"
                                    @input="setVolume($event.target.value)" aria-label="Playback volume"
                                    class="w-24" style="accent-color: var(--vf-amber);">
                             <span class="w-10 text-right font-mono text-xs" x-text="Math.round(playbackVolume * 100) + '%'"></span>
                         </label>
-                        <button @click="playWaveform()" :disabled="!waveform" class="px-4 py-2 btn-primary rounded-lg">▶️ Play</button>
-                        <button @click="stopWaveform()" :disabled="!waveform" class="px-4 py-2 btn-danger rounded-lg">⏹️ Stop</button>
-                        <button @click="zoomIn()" :disabled="!waveform" class="px-4 py-2 text-white rounded-lg" style="background-color: var(--vf-line);">🔍 +</button>
-                        <button @click="zoomOut()" :disabled="!waveform" class="px-4 py-2 text-white rounded-lg" style="background-color: var(--vf-line);">🔍 -</button>
+                        <button @click="playWaveform()" :disabled="!waveform" class="px-4 py-2 btn-primary rounded-lg"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-play"></use></svg> Play</button>
+                        <button @click="stopWaveform()" :disabled="!waveform" class="px-4 py-2 btn-danger rounded-lg"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-stop"></use></svg> Stop</button>
+                        <button aria-label="Zoom in" title="Zoom in" @click="zoomIn()" :disabled="!waveform" class="px-4 py-2 text-white rounded-lg" style="background-color: var(--vf-line);"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-zoom-in"></use></svg></button>
+                        <button aria-label="Zoom out" title="Zoom out" @click="zoomOut()" :disabled="!waveform" class="px-4 py-2 text-white rounded-lg" style="background-color: var(--vf-line);"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-zoom-out"></use></svg></button>
                     </div>
                 </div>
             </div>
@@ -1650,7 +1727,7 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div x-show="waveformLoading" class="text-center text-secondary py-8 text-lg">Loading waveform...</div>
                 <div x-show="!waveform && !waveformLoading" class="text-center text-muted py-8">Waveform will appear after analysis completes</div>
-                <p class="text-sm text-muted">💡 Tip: Drag the colored regions to adjust track boundaries, or right-click to add splits.<span x-show="expectedBoundaries.length > 0" x-cloak> Dashed red lines mark where the Discogs lengths expect each break.</span></p>
+                <p class="text-sm text-muted"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-info"></use></svg> Tip: Drag the colored regions to adjust track boundaries, or right-click to add splits.<span x-show="expectedBoundaries.length > 0" x-cloak> Dashed red lines mark where the Discogs lengths expect each break.</span></p>
             </div>
         </div>
 
@@ -1665,7 +1742,7 @@
                         <div x-show="currentPlayingTrack" class="mb-4 p-4 rounded-lg" style="background-color: rgba(229, 161, 0, 0.1);">
                             <div class="flex items-center justify-between mb-2">
                                 <span class="font-medium text-primary">Playing Track <span x-text="currentPlayingTrack"></span></span>
-                                <button @click="stopPreview()" class="px-3 py-1 btn-danger rounded text-sm">⏹️ Stop</button>
+                                <button @click="stopPreview()" class="px-3 py-1 btn-danger rounded text-sm"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-stop"></use></svg> Stop</button>
                             </div>
                             <audio x-ref="audioPlayer" controls class="w-full"
                                    @play="stopWaveform()" @volumechange="setVolume($event.target.volume)"></audio>
@@ -1677,14 +1754,14 @@
                                         <div class="flex items-center gap-2">
                                             <input type="checkbox" :checked="track.ignored" @change="toggleTrackIgnored(track)" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="w-4 h-4 rounded" style="accent-color: var(--vf-bad);" title="Ignore this track">
                                             <label class="text-xs text-muted cursor-pointer" :class="{'opacity-60 cursor-not-allowed': analyzing}" @click="toggleTrackIgnored(track)">Ignore</label>
-                                            <button @click="playPreview(track.number)" :disabled="track.ignored" class="px-3 py-1 btn-primary rounded text-sm" title="Play 30-second preview">▶️ Play</button>
+                                            <button @click="playPreview(track.number)" :disabled="track.ignored" class="px-3 py-1 btn-primary rounded text-sm" title="Play 30-second preview"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-play"></use></svg> Play</button>
                                             <span class="font-medium text-primary" :class="{ 'line-through text-muted': track.ignored }">Track <span x-text="track.number"></span></span>
                                         </div>
                                         <div class="flex gap-2">
-                                            <button @click="deleteTrack(track.number)" class="px-3 py-1 btn-danger rounded text-sm" title="Delete this track">🗑️ Delete</button>
+                                            <button @click="deleteTrack(track.number)" class="px-3 py-1 btn-danger rounded text-sm" title="Delete this track"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-delete"></use></svg> Delete</button>
                                             <button @click="track.editing = !track.editing" :disabled="track.ignored" class="px-3 py-1 rounded text-sm text-primary" style="background-color: var(--vf-raised);" :class="{'opacity-50 cursor-not-allowed': track.ignored}">
-                                                <span x-show="!track.editing">✏️ Adjust</span>
-                                                <span x-show="track.editing">✓ Done</span>
+                                                <span x-show="!track.editing"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-edit"></use></svg> Adjust</span>
+                                                <span x-show="track.editing"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> Done</span>
                                             </button>
                                         </div>
                                     </div>
@@ -1709,16 +1786,16 @@
                     <!-- Track Mapping -->
                     <div x-show="selectedRelease" x-cloak class="bg-card rounded-lg shadow p-6">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-semibold text-primary" x-text="isManualRelease ? 'Export' : '🎚️ Track Mapping'"></h3>
+                            <h3 class="text-lg font-semibold text-primary" x-text="isManualRelease ? 'Export' : 'Track Mapping'"></h3>
                             <div x-show="!isManualRelease" class="flex gap-2">
-                                <button @click="reverseMapping()" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="px-4 py-2 rounded-lg text-primary hover:bg-page" style="background-color: var(--vf-raised);">↕️ Reverse</button>
+                                <button @click="reverseMapping()" :disabled="analyzing" :class="{'opacity-60 cursor-not-allowed': analyzing}" class="px-4 py-2 rounded-lg text-primary hover:bg-page" style="background-color: var(--vf-raised);"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-swap"></use></svg> Reverse</button>
                             </div>
                         </div>
 
                         <!-- Track Count Mismatch Warning -->
                         <div x-show="showTrackCountMismatch" class="mb-4 p-4 rounded-lg border-2" style="background-color: rgba(217, 64, 50, 0.1); border-color: var(--vf-bad);">
                             <div class="flex items-start gap-3">
-                                <span class="text-2xl">⚠️</span>
+                                <span class="text-2xl"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-warning"></use></svg></span>
                                 <div class="flex-1">
                                     <p class="font-semibold text-primary mb-1">Track Count Mismatch</p>
                                     <p class="text-sm text-secondary mb-2">
@@ -1726,18 +1803,18 @@
                                         but the selected side(s) of this release have <span class="font-semibold" x-text="targetTracks.length"></span> tracks.
                                     </p>
                                     <p class="text-xs text-muted mb-2">
-                                        💡 Scroll up to the waveform and right-click to add splits, or right-click a track region to ignore it.
+                                        <svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-info"></use></svg> Scroll up to the waveform and right-click to add splits, or right-click a track region to ignore it.
                                     </p>
                                     <div class="flex flex-wrap gap-2">
                                         <button x-show="targetTracks.length <= maxGuidedTracks" @click="smartRescan(targetTracks.length)" :disabled="analyzing || currentFileExporting" class="px-3 py-1.5 btn-primary rounded-lg text-sm font-semibold" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}">
-                                            <span x-show="!analyzing" x-text="`🎯 Smart rescan for ${targetTracks.length} tracks`"></span>
+                                            <span x-show="!analyzing" x-text="`Smart rescan for ${targetTracks.length} tracks`"></span>
                                             <span x-show="analyzing" class="flex items-center gap-2">
                                                 <div class="spinner"></div>
                                                 Rescanning…
                                             </span>
                                         </button>
                                         <button @click="snapToDiscogs()" :disabled="analyzing || currentFileExporting || targetTracks.length < 1" class="px-3 py-1.5 btn-primary rounded-lg text-sm font-semibold" :class="{'opacity-60 cursor-not-allowed': analyzing || currentFileExporting}" title="Place the boundaries using the Discogs track lengths">
-                                            🧲 Snap to Discogs
+                                            <svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-align"></use></svg> Snap to Discogs
                                         </button>
                                     </div>
                                     <p x-show="rescanNotice" x-cloak class="mt-2 text-sm text-primary" x-text="rescanNotice"></p>
@@ -1797,7 +1874,7 @@
 
                         <!-- Process Button -->
                         <button @click="processFile()" :disabled="isProcessing" class="w-full px-6 py-3 btn-primary rounded-lg font-bold text-lg">
-                            <span x-show="!isProcessing">✓ Process & Save</span>
+                            <span x-show="!isProcessing"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> Process & Save</span>
                             <span x-show="isProcessing" class="flex items-center justify-center gap-2">
                                 <div class="spinner"></div>
                                 Processing...
@@ -1808,7 +1885,7 @@
 
                     <!-- Success Message -->
                     <div x-show="successMessage" x-cloak class="rounded-lg p-6" style="background-color: rgba(229, 161, 0, 0.1); border: 2px solid var(--vf-amber);">
-                        <h3 class="text-lg font-bold text-primary mb-2">✓ Processing Complete!</h3>
+                        <h3 class="text-lg font-bold text-primary mb-2"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-check"></use></svg> Processing Complete!</h3>
                         <p class="text-secondary" x-text="successMessage"></p>
                         <button @click="resetForNextFile()" class="mt-4 px-6 py-2 btn-primary rounded-lg">
                             Process Next File
@@ -1836,9 +1913,9 @@
         <div x-show="bar.queue.length" x-cloak class="vf-bar" role="region" aria-label="Player">
             <div class="max-w-6xl mx-auto flex items-center gap-4">
                 <div class="flex items-center gap-1">
-                    <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="barPrev()" aria-label="Previous track">⏮</button>
-                    <button type="button" class="vf-play" style="width:38px;height:38px;background:var(--vf-amber);color:var(--vf-on-amber)" @click="toggleBar()" :aria-label="bar.playing ? 'Pause' : 'Play'" x-text="bar.playing ? '❚❚' : '▶'"></button>
-                    <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="barNext()" aria-label="Next track">⏭</button>
+                    <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="barPrev()" aria-label="Previous track"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-previous"></use></svg></button>
+                    <button type="button" class="vf-play" style="width:38px;height:38px;background:var(--vf-amber);color:var(--vf-on-amber)" @click="toggleBar()" :aria-label="bar.playing ? 'Pause' : 'Play'" ><svg class="vf-icon" aria-hidden="true" focusable="false"><use :href="'#vf-icon-' + (bar.playing ? 'pause' : 'play')"></use></svg></button>
+                    <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="barNext()" aria-label="Next track"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-next"></use></svg></button>
                 </div>
                 <img x-show="barItem?.cover" :src="barItem?.cover || ''" alt="" class="w-10 h-10 rounded object-cover hidden sm:block" referrerpolicy="no-referrer">
                 <div class="flex-1 min-w-0 space-y-1">
@@ -1853,7 +1930,7 @@
                 <label class="hidden md:flex items-center gap-2 text-xs text-muted font-mono">VOL
                     <input type="range" class="vf-range w-20" min="0" max="1" step="0.05" :value="playbackVolume" @input="setVolume($event.target.value)" aria-label="Volume">
                 </label>
-                <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="pauseBar(); bar.queue = []; bar.index = -1" aria-label="Close the player">✕</button>
+                <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" @click="pauseBar(); bar.queue = []; bar.index = -1" aria-label="Close the player"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-close"></use></svg></button>
             </div>
         </div>
     </div>

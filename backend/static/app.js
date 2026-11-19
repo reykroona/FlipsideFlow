@@ -421,8 +421,10 @@ function vinylApp() {
                 this.recorder = data;
                 this.syncRecognition(data.recognition);
                 this.recordingError = data.error || '';
-                if (data.file) this.acceptRecordedFile(data.file);
+                if (data.queued_job) this.onRecordingQueued(data);
+                else if (data.file) this.acceptRecordedFile(data.file);
                 if (action === 'stop') await this.loadSavedRecordings();
+                return data;
             } catch (error) {
                 this.recordingError = error.message;
             } finally {
@@ -587,6 +589,7 @@ function vinylApp() {
         destroy() {
             this._recordingDisposed = true;
             clearTimeout(this._recordingTimer);
+            clearTimeout(this._finishQueueTimer);
         },
 
         /**
@@ -685,7 +688,7 @@ function vinylApp() {
                         this.processingProgress = 1.0;
                         this.processingMessage = 'Complete!';
                         this.isProcessing = false;
-                        this.successMessage = `✅ ${data.tracks.length} tracks saved to ${data.output_path || 'your output folder'}\n\nTracks: ${data.tracks.join(', ')}`;
+                        this.successMessage = `${data.tracks.length} tracks saved to ${data.output_path || 'your output folder'}\n\nTracks: ${data.tracks.join(', ')}`;
 
                         const file = this.uploadedFiles.find(f => f.id === data.file_id);
                         if (file) {
@@ -1187,7 +1190,7 @@ function vinylApp() {
 
         /** Icon shown beside a toast so its type is not conveyed by colour alone */
         toastIcon(type) {
-            return { success: '✓', warning: '⚠', error: '✕' }[type] || 'ℹ';
+            return { success: 'check', warning: 'warning', error: 'close' }[type] || 'info';
         },
 
         _armToast(id, ms) {
@@ -1695,11 +1698,11 @@ function vinylApp() {
                 await this.initWaveform();
 
                 this.rescanNotice = data.matched
-                    ? `✅ Found exactly ${data.tracks.length} tracks.`
-                    : `⚠️ Couldn't find exactly ${target} tracks — closest result is ${data.tracks.length}. Right-click the waveform to add or remove splits manually.`;
+                    ? `Found exactly ${data.tracks.length} tracks.`
+                    : `Couldn't find exactly ${target} tracks — closest result is ${data.tracks.length}. Right-click the waveform to add or remove splits manually.`;
             } catch (error) {
                 console.error('Smart rescan failed:', error);
-                this.rescanNotice = '❌ Smart rescan failed: ' + error.message;
+                this.rescanNotice = 'Smart rescan failed: ' + error.message;
                 this.processingMessage = '';
             } finally {
                 this.analyzing = false;
@@ -2096,7 +2099,7 @@ function vinylApp() {
             const targets = this.targetTracks;
             if (targets.length < 1 || !this.currentFileId || this.analyzing || this.currentFileExporting) return false;
             if (targets.length > MAX_GUIDED_TRACKS) {
-                this.rescanNotice = `⚠️ The chosen sides hold ${targets.length} tracks; detection places at most ${MAX_GUIDED_TRACKS} at a time.${this.sideChips.length > 1 ? ' Pick a disc or side.' : ''}`;
+                this.rescanNotice = `The chosen sides hold ${targets.length} tracks; detection places at most ${MAX_GUIDED_TRACKS} at a time.${this.sideChips.length > 1 ? ' Pick a disc or side.' : ''}`;
                 this.clearExpectedMarkers();   // they belonged to the previous sides
                 return false;
             }
@@ -2172,11 +2175,11 @@ function vinylApp() {
 
                 if (data.method === 'durations') {
                     const snapped = (data.boundaries || []).filter(b => b.snapped).length;
-                    this.rescanNotice = `✅ Placed ${data.tracks.length} tracks from Discogs lengths (${snapped} of ${(data.boundaries || []).length} boundaries snapped to silence).`;
+                    this.rescanNotice = `Placed ${data.tracks.length} tracks from Discogs lengths (${snapped} of ${(data.boundaries || []).length} boundaries snapped to silence).`;
                 } else {
                     this.rescanNotice = data.matched
-                        ? `✅ Placed ${data.tracks.length} tracks by track count (Discogs lengths unavailable).`
-                        : `⚠️ Couldn't find exactly ${targets.length} tracks — closest result is ${data.tracks.length}. Right-click the waveform to add or remove splits manually.`;
+                        ? `Placed ${data.tracks.length} tracks by track count (Discogs lengths unavailable).`
+                        : `Couldn't find exactly ${targets.length} tracks — closest result is ${data.tracks.length}. Right-click the waveform to add or remove splits manually.`;
                 }
                 // Nothing found is not a success: the caller must not offer an Undo of it
                 succeeded = data.tracks.length > 0;
@@ -3345,9 +3348,9 @@ function vinylApp() {
                         const tracks = Array.isArray(job.tracks) ? job.tracks : [];
                         const where = job.output_path || job.output_folder || 'your output folder';
                         if (tracks.length > 0) {
-                            this.successMessage = `✅ ${tracks.length} tracks saved to ${where}\n\nTracks: ${tracks.join(', ')}`;
+                            this.successMessage = `${tracks.length} tracks saved to ${where}\n\nTracks: ${tracks.join(', ')}`;
                         } else {
-                            this.successMessage = `✅ Processing complete. Files saved to ${where}.`;
+                            this.successMessage = `Processing complete. Files saved to ${where}.`;
                         }
 
                         const file = this.uploadedFiles.find(f => f.id === job.file_id);

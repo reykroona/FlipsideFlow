@@ -60,3 +60,32 @@ def test_bad_input_and_arbitrary_path_are_rejected(env):
     rec, client = env
     assert client.post("/api/recording/monitor", json=dict(device=0, device_name="Scarlett USB", left=1, right=1, rate=48000)).status_code == 409
     assert client.post("/api/recording/saved/not-a-uuid/open").status_code == 409
+
+
+def test_learn_silence_requires_monitor_and_persists_without_recording(env, monkeypatch, tmp_path):
+    import json
+    import numpy as np
+    from config import Config
+    rec, client = env
+    monkeypatch.setattr(api.config, '_settings_path', str(tmp_path / 'settings.json'))
+    monkeypatch.setattr(api.config, 'learned_silence', False)
+    monkeypatch.setattr(api.audio_processor, 'silence_threshold', -40)
+    assert client.post('/api/recording/silence/start').status_code == 409
+    assert client.post('/api/recording/monitor', json=dict(device=0, device_name='Scarlett USB', left=1, right=2, rate=48000)).status_code == 200
+    assert client.post('/api/recording/silence/apply').status_code == 409
+    assert client.post('/api/recording/silence/start').status_code == 200
+    rec.calibration.feed(np.full((480000, 2), 8388608 * 10 ** (-52/20)), 48000)
+    reply = client.post('/api/recording/silence/apply')
+    assert reply.status_code == 200, reply.text
+    assert reply.json()['config']['silence_threshold'] == -46
+    assert rec._detector.QUIET_DB == -46
+    assert not rec.saved()  # calibration does not create audio files
+    settings = json.loads((tmp_path / 'settings.json').read_text())
+    assert settings['DEFAULT_SILENCE_THRESHOLD'] == -46
+    monkeypatch.setenv('VINYLFLOW_CONFIG_DIR', str(tmp_path))
+    assert Config().default_silence_threshold == -46
+    client.post('/api/recording/start', json={})
+    assert client.post('/api/recording/silence/start').status_code == 409
+    assert client.post('/api/recording/silence/apply').status_code == 409
+    remote = TestClient(api.app, client=('192.168.1.5', 5000))
+    assert remote.post('/api/recording/silence/start').status_code == 403

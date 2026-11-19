@@ -23,6 +23,11 @@ function vinylFlowMixin() {
     });
 
     return {
+        autoExportRecordings: true,
+        finishJobs: [],
+        finishQueueError: '',
+        silenceLearningError: '',
+        _finishQueueTimer: null,
         view: 'workbench',      // record | library | workbench
         flow: freshFlow(),
         _flowSeq: 0,
@@ -32,6 +37,7 @@ function vinylFlowMixin() {
         async initFlow() {
             this.view = this.recordingEnabled ? 'record' : 'library';
             await this.loadLibrary();
+            if (this.recordingEnabled) this.pollFinishQueue();
             if (!this.recordingEnabled && !this.library.albums.length) this.view = 'workbench';
             // A recording still running in the backend (window reloaded): go straight to it.
             if (this.recordingActive) {
@@ -293,7 +299,15 @@ function vinylFlowMixin() {
 
         async flowFinish() {
             if (!this.recordingActive || this.recordingBusy) return;
-            await this.recordingAction('stop');
+            const result = await this.recordingAction('stop', {
+                auto_export: this.autoExportRecordings,
+                release_id: this.flow.releaseOrigin === 'manual' ? this.flow.release?.id : null,
+                output_format: this.outputFormat, restoration_level: this.restorationLevel
+            });
+            if (result?.queued_job) {
+                if (this.recordingInput.device !== '') await this.recordingAction('monitor', this.recordingInput);
+                return;
+            }
             if (this.flow.step === 'record' && !this.recordingActive && this.recorder.state !== 'recording') {
                 // stop() handed the file to onRecordedFileAccepted; without one, nothing was saved.
                 if (!this.flow.fileId) this.notify(this.recordingError || 'Nothing was recorded.', { type: 'warning' });
@@ -333,6 +347,69 @@ function vinylFlowMixin() {
             }
             this.notify('Recording saved.', { type: 'success' });
             return true;
+        },
+
+        onRecordingQueued(data) {
+            this._flowSeq++;
+            const autoFlip = this.flow.autoFlip;
+            this.flow = { ...freshFlow(), step: 'record', autoFlip };
+            this.recordingTitle = '';
+            this.finishJobs = [{ ...data.queued_job, title: data.file.filename, message: 'Queued for processing.' },
+                ...this.finishJobs.filter(j => j.id !== data.queued_job.id)];
+            this.notify('Saved and queued. Ready for the next record.', { type: 'success' });
+        },
+
+        get pendingFinishJobs() { return this.finishJobs.filter(j => j.state !== 'complete'); },
+        get reviewFinishJobs() { return this.finishJobs.filter(j => j.state === 'needs_review'); },
+        get activeFinishJobs() { return this.finishJobs.filter(j => !['complete', 'needs_review'].includes(j.state)); },
+
+        async pollFinishQueue() {
+            try {
+                const data = await this.recordingRequest('finish-queue');
+                if (this._recordingDisposed) return;
+                const completed = (data.jobs || []).some(j => j.state === 'complete' && this.finishJobs.some(old => old.id === j.id && old.state !== 'complete'));
+                this.finishJobs = data.jobs || [];
+                this.finishQueueError = '';
+                if (completed) await this.loadLibrary();
+            } catch (error) { this.finishQueueError = 'Background status unavailable. Originals remain saved; reconnect to check progress.'; }
+            finally {
+                if (!this._recordingDisposed) {
+                    clearTimeout(this._finishQueueTimer);
+                    this._finishQueueTimer = setTimeout(() => this.pollFinishQueue(), 3000);
+                }
+            }
+        },
+
+        async openFinishReview(job) {
+            if (this.analyzing || this.isProcessing) {
+                this.notify('Wait for the current edit or export to finish before opening another recording.', { type: 'warning' });
+                return;
+            }
+            if (this.currentFileId === job.id) { this.setView('workbench'); return; }
+            try {
+                const data = await this.recordingRequest(`finish-queue/${job.id}/open`, {});
+                const file = { ...data.file, recognition: data.file.recognition || {}, importRecognitionDismissed: true };
+                this.uploadedFiles = [...this.uploadedFiles.filter(f => f.id !== file.id), file];
+                this.selectFile(file.id);
+                this.searchSeq++;
+                this.searchLoading = false;
+                this.selectedRelease = data.release;
+                this.selectedSides = data.sides || [];
+                if (data.release && !this.selectedSides.length) this.selectedSides = this.releaseSides(data.release).map(g => g.side);
+                this.detectedTracks = (data.tracks || []).map(t => ({ ...t, ignored: false }));
+                if (this.detectedTracks.length) this.markEdited();
+                this.resetMappingToTargets();
+                this.setView('workbench');
+            } catch (error) { this.notify(error.message, { type: 'warning' }); }
+        },
+
+        async learnSilence(action = 'start') {
+            this.silenceLearningError = '';
+            try {
+                const data = await this.recordingRequest(`silence/${action}`, {});
+                this.recorder.calibration = data.calibration;
+                if (data.config) this.config = { ...this.config, ...data.config };
+            } catch (error) { this.silenceLearningError = error.message; }
         },
 
         // ---------------------------------------------------------------- Review & export
@@ -445,7 +522,7 @@ function vinylFlowMixin() {
         /** Saved recordings never exported: the library's "needs review" row. */
         get unfinishedRecordings() {
             const exported = new Set(this.library.albums.flatMap(a => (a.sources || []).map(s => s.session_id)));
-            return this.savedRecordings.filter(r => !exported.has(r.id));
+            return this.savedRecordings.filter(r => !exported.has(r.id) && !this.finishJobs.some(j => j.id === r.id));
         },
 
         selectAlbum(album) {

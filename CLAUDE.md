@@ -263,3 +263,11 @@ python-multipart             # File upload parsing
 aiofiles                     # Async file I/O
 websockets                   # WebSocket support
 ```
+
+
+## Background finish queue and silence calibration (Beta 6)
+
+- `backend/finish_queue.py` persists `finish-job.json` beside each original WAV. States: queued → identifying → detecting → exporting → complete, or needs_review. One worker, immutable recognition/export settings per job, shared export lock with manual exports. Interrupted in-flight jobs become needs_review on startup; pending jobs resume. `_require_source` rejects competing work on active finish jobs except the worker's context. Cleanup and TTL exclude them. Finished originals can be opened while a different recording captures.
+- `finish_quality.py` gates unattended exports: 90-point threshold AND identity, count, duration, silence evidence. Not a probability. Existing output folders never auto-overwrite. Missing/ambiguous metadata is reviewable. `flow.js` resets only the recording flow at queue handoff, never the current Workbench editor; polls the queue separately and exposes Library review cards. Never run selectFile on a queued stop.
+- `silence_learning.py` stores only ten seconds of 10 ms RMS levels, uses the louder channel and p80 + 6 dB, rejects unusable inputs. Desktop `/api/recording/silence/{start,cancel,apply}` only measures in monitor state. Applied thresholds persist via Config and affect basic detection + side-end detection; guided detection keeps adaptive smoothing. Input changes/start reset calibration. `bridge_clicks` and SideEndDetector tolerate <=100 ms bursts with <=10% loud duty; originals are unchanged.
+- All UI icons use the local `vf-icon-*` SVG symbols in index.html with currentColor. Do not reintroduce emoji buttons or remote icon fonts.

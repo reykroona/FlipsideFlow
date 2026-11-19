@@ -23,6 +23,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Query, WebSocket, 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from backend.security import SameOriginMiddleware
+from backend import finish_queue
 from backend.recording_api import router as recording_router, shutdown_recording
 from backend.library_api import router as library_router, enable_library
 from backend.import_recognition_api import router as import_recognition_router, shutdown as shutdown_import_recognition
@@ -72,6 +73,7 @@ app.add_middleware(SameOriginMiddleware)
 app.include_router(recording_router)
 app.include_router(library_router)
 app.include_router(import_recognition_router)
+app.include_router(finish_queue.router)
 
 # Global state management.  ``session_store`` owns every Session;
 # ``websocket_connections`` is the list of subscribers for progress
@@ -88,6 +90,8 @@ def _session_status(session: Session) -> str:
     "analyzed" (READY with boundaries detected) — derive that here so
     the wire format stays unchanged after the dict-level state went away.
     """
+    if session.id in finish_queue.manual_exports:
+        return 'processing'
     if session.state == SessionState.PROCESSING:
         return "processing"
     if session.state == SessionState.COMPLETE:
@@ -120,6 +124,9 @@ def _serialize_job(session: Session) -> dict:
     identifier any more.  Re-running a Session overwrites ``last_run``;
     callers polling the same id keep seeing fresh status.
     """
+    if session.id in finish_queue.manual_exports and session.state != SessionState.PROCESSING:
+        return {'job_id': session.id, 'file_id': session.id, 'status': 'processing',
+                'progress': 0.0, 'message': 'Waiting for the export slot…'}
     run = session.last_run
     state = session.state
     if state == SessionState.PROCESSING:
@@ -181,6 +188,8 @@ enable_library(lambda: config.default_output_dir, _library_skip_dirs, UPLOAD_DIR
 def _require_source(session: Session) -> None:
     """410 when an in-place source has vanished from the import folder, 409 when it changed
     since its import: the session's caches and splits describe the old audio."""
+    if finish_queue.busy(session.id) and finish_queue.worker_id.get() != session.id:
+        raise HTTPException(409, 'This recording is processing in the background. Review it from Library when ready.')
     if not session.in_place:
         return
     try:
@@ -230,6 +239,7 @@ def _forget_envelope(file_id: str) -> None:
 
 def cleanup_session(file_id: str) -> bool:
     """Drop a Session and its on-disk source folder."""
+    if finish_queue.busy(file_id): return False
     # Forget the scan first: removing a large folder takes a while, and a decode finishing
     # meanwhile must not announce a recording that is going away.  The finally below catches
     # a scan started during the removal (the Session still exists until then).
@@ -260,7 +270,7 @@ def reap_expired() -> None:
 
     # Drop stale Sessions (the store skips PROCESSING entries),
     # then remove their on-disk source folders.
-    for sid in session_store.reap_stale(ttl_hours=ttl):
+    for sid in session_store.reap_stale(ttl_hours=ttl, exclude=finish_queue.protected_ids()):
         _forget_envelope(sid)
         session_dir = get_session_path(sid)
         if session_dir.exists():
@@ -298,10 +308,12 @@ async def cleanup_old_files():
 async def startup_event():
     """Start background tasks on app startup."""
     asyncio.create_task(cleanup_old_files())
+    await finish_queue.recover()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    await finish_queue.shutdown()
     await shutdown_import_recognition()
     await asyncio.to_thread(shutdown_recording)
 
@@ -372,7 +384,7 @@ class ProcessRequest(BaseModel):
 
 
 class ConfigUpdate(BaseModel):
-    silence_threshold: Optional[float] = None
+    silence_threshold: Optional[float] = Field(default=None, ge=-90, le=-10)
     min_silence_duration: Optional[float] = None
     min_track_length: Optional[float] = None
     output_dir: Optional[str] = None
@@ -1459,6 +1471,7 @@ async def process_file(request: ProcessRequest):
     # job_id == session_id post-Step-4: re-runs reuse the same id, since
     # ``last_run`` is overwritten on each invocation and there's no
     # per-run tracking surface to preserve across restarts.
+    finish_queue.manual_exports.add(session.id)
     asyncio.create_task(process_file_background(request))
 
     return {"job_id": session.id, "status": "processing"}
@@ -1515,6 +1528,7 @@ async def process_file_background(request: ProcessRequest):
     async def emit(event: ProgressEvent) -> None:
         run = session.last_run
         if event.phase == "complete":
+            finish_queue.reviewed_export(file_id, run.output_folder if run else "")
             await broadcast_message({
                 "type": "complete",
                 "file_id": file_id,
@@ -1546,20 +1560,23 @@ async def process_file_background(request: ProcessRequest):
         asyncio.run_coroutine_threadsafe(emit(event), loop)
 
     try:
-        await asyncio.to_thread(
-            pipeline.run,
-            session,
-            spec,
-            request.release_id,
-            audio_processor,
-            metadata_handler,
-            on_progress,
-            _manual_release(request.manual_release),
-        )
+        async with finish_queue.export_lock:
+            await asyncio.to_thread(
+                pipeline.run,
+                session,
+                spec,
+                request.release_id,
+                audio_processor,
+                metadata_handler,
+                on_progress,
+                _manual_release(request.manual_release),
+            )
     except Exception:
         # The Pipeline already emitted an "error" event and marked the
         # Session FAILED.  Nothing to clean up here.
         pass
+    finally:
+        finish_queue.manual_exports.discard(file_id)
 
 
 @app.get("/api/process/{job_id}")
@@ -1593,6 +1610,8 @@ async def remove_from_queue(file_id: str):
     """Remove a Session and its on-disk source folder."""
     if session_store.get(file_id) is None:
         raise HTTPException(status_code=404, detail="File not found")
+    if finish_queue.busy(file_id):
+        raise HTTPException(409, 'This recording is processing in the background.')
     await asyncio.to_thread(cleanup_session, file_id)
     return {"status": "removed"}
 
@@ -1602,6 +1621,7 @@ async def clear_all_temp():
     """Drop every Session and source folder except those mid-Pipeline."""
     cleared = 0
     keep_ids = {s.id for s in session_store.list() if s.state == SessionState.PROCESSING}
+    keep_ids.update(finish_queue.protected_ids())
 
     for entry in list(UPLOAD_DIR.iterdir()):
         if entry.is_dir() and entry.name not in keep_ids:
@@ -1638,6 +1658,9 @@ async def get_config():
 async def update_config(updates: ConfigUpdate):
     """Update configuration parameters."""
     if updates.silence_threshold is not None:
+        if not config._write_settings({'DEFAULT_SILENCE_THRESHOLD': updates.silence_threshold, 'LEARNED_SILENCE': True}):
+            raise HTTPException(503, 'Could not save the silence threshold. Check settings folder permissions.')
+        config.learned_silence = True
         audio_processor.silence_threshold = updates.silence_threshold
     if updates.min_silence_duration is not None:
         audio_processor.min_silence_duration = updates.min_silence_duration

@@ -78,6 +78,7 @@ function setup() {
     restored.flow.step = 'add';
     restored.songRecognition = status('live');
     restored.loadLibrary = async () => {};
+    restored.pollFinishQueue = async () => {};
     global.window = {addEventListener() {}};
     await restored.initFlow();
     assert.strictEqual(restored.flow.release.id, 10);

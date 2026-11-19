@@ -78,7 +78,8 @@ class Config:
         )
 
         # Audio processing settings
-        self.default_silence_threshold = float(os.getenv("DEFAULT_SILENCE_THRESHOLD", "-40"))
+        self.learned_silence = bool(json_settings.get("LEARNED_SILENCE", False))
+        self.default_silence_threshold = float(json_settings.get("DEFAULT_SILENCE_THRESHOLD", os.getenv("DEFAULT_SILENCE_THRESHOLD", "-40")))
         self.default_min_silence_duration = float(os.getenv("DEFAULT_MIN_SILENCE_DURATION", "1.5"))
         self.default_min_track_length = float(os.getenv("DEFAULT_MIN_TRACK_LENGTH", "30"))
         self.default_flac_compression = int(os.getenv("DEFAULT_FLAC_COMPRESSION", "8"))

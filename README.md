@@ -15,7 +15,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Use FlipsideFlow
 
-- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.5/FlipsideFlow-0.1.0-beta.5-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
+- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.6/FlipsideFlow-0.1.0-beta.6-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
 - 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
 - ⚙️ **Python local mode:** see [Manual Setup (Non-Docker)](#manual-setup-non-docker)
 
@@ -126,7 +126,7 @@ Tokens are stored locally and persist across app restarts. If one service fails 
 
 The downloadable beta is for **Apple Silicon Macs (M1 or newer) running macOS 14 Sonoma or later**. Windows and Intel Mac packaging recipes are included in the source, but this release supplies only an ARM64 Mac app.
 
-1. Download `FlipsideFlow-0.1.0-beta.5-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
+1. Download `FlipsideFlow-0.1.0-beta.6-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
 2. Unzip it and drag **FlipsideFlow.app** to **Applications**. Quit an older running copy before opening the new one.
 3. The beta is ad-hoc signed and **not notarized by Apple**. If macOS blocks it, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm.
 4. Allow microphone access when prompted, connect your Scarlett, and select its CoreAudio input. AudD and Discogs tokens are needed only for their online features.
@@ -537,3 +537,16 @@ Found a bug? Have a feature idea? [Open an issue](https://github.com/reykroona/F
 ---
 
 **FlipsideFlow** — based on **VinylFlow**, built with ❤️ by DJs, for DJs.
+
+
+### Continuous recording and review (Beta 6)
+
+In **Record**, leave **Auto-export clear matches after finishing** enabled to save the original WAV, queue identification/splitting/export, and return to input monitoring for the next record. Choose FLAC, MP3, or AIFF and optional light cleanup before recording. One export runs at a time, with reduced FFmpeg priority; capture uses its own writer. Originals and jobs survive app restarts. Closing the app interrupts active processing and sends that item to review rather than repeating an export.
+
+Automatic export requires a match-quality score of at least **90/100**, plus matching track counts, credible durations and silence evidence at internal splits. This score is a conservative rules-based check, **not an AudD confidence percentage**. A manually chosen album supplies the identity check; timing and split checks still apply. Ambiguous albums/sides, incomplete Discogs durations, poor splits, errors and existing output folders go to **Library → Needs review**. Open **Review splits & album** to edit and export later, including while another record is capturing. The app identifies the likely album; it cannot certify the physical pressing. AudD may receive one additional ten-second excerpt after finishing if a song has not already been identified.
+
+### Learn silence
+
+Before recording, open **Record → Learn silence** with the input monitor running. Put the needle into a spinning groove with no music, keep your normal recording gain, and choose **Measure noise floor**. After ten seconds, **Apply threshold** saves the suggested level to Settings and uses it for basic silence detection and automatic side-end detection. No calibration audio is saved or uploaded. Guided splitting also uses its existing adaptive smoothing; calibration does not replace its album/timing checks.
+
+The measurement uses short RMS frames and a percentile to resist sparse clicks. Almost-zero input, loud samples and highly uneven noise are rejected. Basic gap detection and side-end detection now tolerate isolated bursts up to 100 ms when the surrounding interval is at least 90% quiet. Frequent/long pops, music, and a loud repeating run-out click can still prevent detection. Use another quiet groove if needed; relearn after changing gain, cartridge or input. Check the first few records' split points: very quiet musical passages can resemble surface noise.
