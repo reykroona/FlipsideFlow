@@ -276,3 +276,9 @@ websockets                   # WebSocket support
 ## Input peak meters (Beta 7)
 
 `Recorder` accumulates per-channel sample peaks and clipping in `_write_loop`, under a separate `_meter_lock`. Never acquire `_control` from the writer: controls drain the writer while holding it. `/api/recording/meters/reset` is loopback-only and clears held peaks/clipping without draining or stopping capture. `/status` returns `peak_hold` in dBFS, independent of live-meter timeout. Reset automatically at new monitor/start, preserve across pause/resume. Both frontend meter panels share the same markup/helpers, a -60..0 scale, target range -12..-6 (80–90% width), and explicit dBFS/peak/clip text. Do not implement peak hold in browser polls: that misses short transients.
+
+
+## Workflow refinements (Beta 8)
+
+- `SIDE_QUIET_DB` is written only by Learn silence. `Config.side_quiet_db` is validated independently of `DEFAULT_SILENCE_THRESHOLD`; `apply_side_levels` installs it at capture start or uses SideEndDetector defaults. Ignore legacy `LEARNED_SILENCE` because ordinary Settings saves formerly set it. Upgraders should recalibrate once for automatic side detection.
+- `autoExportReady` requires AudD configured or a manual album pick; otherwise Finish uses manual review. Library review opens `showFlowReview` while idle and Workbench during capture. Recording options including Learn silence live under Options. Onboarding prompts only when Discogs is missing; AudD remains optional. Keep Settings form values on non-2xx saves.

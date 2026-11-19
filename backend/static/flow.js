@@ -300,7 +300,8 @@ function vinylFlowMixin() {
         async flowFinish() {
             if (!this.recordingActive || this.recordingBusy) return;
             const result = await this.recordingAction('stop', {
-                auto_export: this.autoExportRecordings,
+                // Without AudD or a picked album the job could only fail: go to the Export step instead.
+                auto_export: this.autoExportRecordings && this.autoExportReady,
                 release_id: this.flow.releaseOrigin === 'manual' ? this.flow.release?.id : null,
                 output_format: this.outputFormat, restoration_level: this.restorationLevel
             });
@@ -359,6 +360,11 @@ function vinylFlowMixin() {
             this.notify('Saved and queued. Ready for the next record.', { type: 'success' });
         },
 
+        /** Automatic export can only identify the album with AudD or a Discogs pick made before recording. */
+        get autoExportReady() {
+            return !!this.songRecognition.configured || (this.flow.releaseOrigin === 'manual' && !!this.flow.release);
+        },
+
         get pendingFinishJobs() { return this.finishJobs.filter(j => j.state !== 'complete'); },
         get reviewFinishJobs() { return this.finishJobs.filter(j => j.state === 'needs_review'); },
         get activeFinishJobs() { return this.finishJobs.filter(j => !['complete', 'needs_review'].includes(j.state)); },
@@ -385,7 +391,13 @@ function vinylFlowMixin() {
                 this.notify('Wait for the current edit or export to finish before opening another recording.', { type: 'warning' });
                 return;
             }
-            if (this.currentFileId === job.id) { this.setView('workbench'); return; }
+            // The Record view shows one step at a time: while a record is being made, review in the Workbench.
+            const inWorkbench = this.recordingActive;
+            if (this.currentFileId === job.id) {
+                if (inWorkbench) this.setView('workbench');
+                else this.showFlowReview(job.id);
+                return;
+            }
             try {
                 const data = await this.recordingRequest(`finish-queue/${job.id}/open`, {});
                 const file = { ...data.file, recognition: data.file.recognition || {}, importRecognitionDismissed: true };
@@ -399,8 +411,25 @@ function vinylFlowMixin() {
                 this.detectedTracks = (data.tracks || []).map(t => ({ ...t, ignored: false }));
                 if (this.detectedTracks.length) this.markEdited();
                 this.resetMappingToTargets();
-                this.setView('workbench');
+                if (inWorkbench) {
+                    this.setView('workbench');
+                } else {
+                    this.showFlowReview(file.id);
+                    // An album but no splits yet (the job stopped early): place them now.
+                    if (data.release && !this.detectedTracks.length) this.redetectForTargets();
+                }
             } catch (error) { this.notify(error.message, { type: 'warning' }); }
+        },
+
+        /** The simple Export step (track list, play, Export; Fix splits opens the Workbench). */
+        showFlowReview(fileId) {
+            this._flowSeq++;
+            const autoFlip = this.flow.autoFlip;
+            this.flow = { ...freshFlow(), step: 'review', fileId, autoFlip };
+            const song = this.currentFile?.recognition?.song;
+            this.flow.query = song ? `${song.artist} ${song.album || ''}`.trim() : this.cleanFilename(this.currentFile?.filename || '');
+            this.view = 'record';
+            window.scrollTo(0, 0);
         },
 
         async learnSilence(action = 'start') {

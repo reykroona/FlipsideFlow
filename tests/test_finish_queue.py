@@ -148,6 +148,7 @@ def test_missing_provider_stays_reviewable_and_explicit_export_resolves_job(env)
     rec, client, session, job = env
     asyncio.run(queue.run_job(job))
     assert queue.get_job(job['id'])['state'] == 'needs_review'
+    assert 'no AudD token' in queue.get_job(job['id'])['message']  # says why, not "could not finish"
     assert client.post(f'/api/recording/finish-queue/{job["id"]}/open').status_code == 200
     queue.reviewed_export(job['id'], '/output/reviewed')
     assert queue.get_job(job['id'])['state'] == 'complete'

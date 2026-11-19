@@ -458,51 +458,13 @@
                 </template>
             </ol>
 
-            <section id="live-recognition" x-show="['add', 'record', 'review'].includes(flow.step)" class="vf-panel p-5 space-y-3" aria-label="Automatic song recognition">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <label class="flex items-center gap-2 text-sm text-primary font-semibold">
-                        <input type="checkbox" x-model="identifyAlbum" :disabled="recordingActive || recordingBusy || flow.releaseOrigin === 'manual'">
-                        Identify the album while recording
-                    </label>
-                    <button type="button" class="vf-btn vf-btn-sm" @click="openRecognitionSettings()" x-text="songRecognition.configured ? 'AudD settings' : 'Set up AudD'"></button>
-                </div>
-                <p role="status" class="text-sm text-secondary" x-text="flowRecognitionMessage"></p>
-                <p class="text-xs text-muted">AudD receives a 10-second excerpt from the WAV being recorded, with one retry around 3 minutes if needed. Recording continues; the original WAV stays local.</p>
-                <p x-show="!discogsConfigured" class="text-xs vf-warn">Add your Discogs token in Settings too, so the identified song can load its album and tracklist.</p>
-                <p x-show="flowRecognition?.song" class="text-sm text-primary" x-text="flowRecognition?.song ? `Identified: ${flowRecognition.song.artist} — ${flowRecognition.song.title}` : ''"></p>
-                <template x-if="flowRecognition?.selected_release">
-                    <div class="flex items-center gap-3">
-                        <img x-show="flowRecognition.selected_release.cover_url" :src="flowRecognition.selected_release.cover_url || ''" alt="Likely album cover" class="w-16 h-16 rounded object-cover" referrerpolicy="no-referrer">
-                        <div>
-                            <p class="text-sm text-primary font-semibold" x-text="`${flowRecognition.selected_release.artist} — ${flowRecognition.selected_release.title}`"></p>
-                            <p class="text-xs text-muted">Likely album · exact pressing unconfirmed</p>
-                            <a :href="`https://www.discogs.com/release/${flowRecognition.selected_release.id}`" target="_blank" rel="noopener noreferrer" class="text-xs underline">View on Discogs</a>
-                        </div>
-                    </div>
-                </template>
-                <details x-show="flowRecognition?.candidates?.length">
-                    <summary class="text-sm text-secondary cursor-pointer">Choose or correct the album</summary>
-                    <div class="flex flex-wrap gap-2 mt-2">
-                        <template x-for="candidate in (flowRecognition?.candidates || [])" :key="candidate.id">
-                            <button type="button" class="vf-btn vf-btn-sm" :disabled="recognitionBusy" @click="recognitionAction('select', {recording_id: recorder.id, release_id: candidate.id})" x-text="`${candidate.artist} — ${candidate.title} (${candidate.year || 'year unknown'})`"></button>
-                        </template>
-                        <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" :disabled="recognitionBusy" @click="recognitionAction('select', {recording_id: recorder.id, release_id: null})">Dismiss suggestion</button>
-                    </div>
-                </details>
-                <button type="button" x-show="flowRecognition && recorder.seconds >= 10" class="vf-btn vf-btn-sm" @click="recognitionAction('identify')"
-                        :disabled="recognitionBusy || ['identifying', 'looking_up'].includes(flowRecognition?.state) || (!songRecognition.configured && !flowRecognition?.song)"
-                        x-text="flowRecognition?.song ? 'Retry Discogs lookup' : 'Identify now'"></button>
-                <p x-show="recognitionNotice" role="status" class="text-xs text-secondary" x-text="recognitionNotice"></p>
-                <p x-show="flowRecognition?.persistence_warning" class="text-xs vf-warn" x-text="flowRecognition?.persistence_warning"></p>
-            </section>
-
             <!-- 1 · ADD -->
             <section x-show="flow.step === 'add'" class="vf-panel p-6 sm:p-8 space-y-6">
                 <div class="space-y-2">
                     <h2 class="text-3xl text-primary">What are you recording?</h2>
-                    <p class="text-secondary max-w-2xl">Start recording and let AudD identify the album while it plays. Or search Discogs yourself before recording.</p>
+                    <p class="text-secondary max-w-2xl" x-text="songRecognition.configured ? 'Start recording and let AudD identify the album while it plays. Or search Discogs yourself before recording.' : 'Search Discogs for the album first, so FlipsideFlow knows its sides and tracks. Or record now and name it after.'"></p>
                 </div>
-                <button type="button" class="vf-btn vf-btn-primary" @click="flowSkipLookup()" x-text="identifyAlbum ? 'Record and identify automatically →' : 'Record without identification →'"></button>
+                <button type="button" class="vf-btn vf-btn-primary" @click="flowSkipLookup()" x-text="identifyAlbum && songRecognition.configured ? 'Record and identify automatically →' : 'Record now, name it after →'"></button>
                 <form class="flex gap-2" @submit.prevent="flowSearch()">
                     <input id="flow-query" type="search" x-model="flow.query" class="vf-input text-lg" placeholder="e.g. Fleetwood Mac Rumours" aria-label="Artist and album" autocomplete="off">
                     <button type="submit" class="vf-btn vf-btn-primary" :disabled="flow.searching || !flow.query.trim()">
@@ -611,40 +573,6 @@
                             </div>
                         </div>
 
-                        <div class="space-y-1.5" aria-label="Input levels">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <p class="text-xs text-secondary">Aim for peaks in <strong class="vf-ok">−12 to −6 dBFS</strong></p>
-                                <button type="button" class="vf-btn vf-btn-sm" @click="recordingAction('meters/reset')" :disabled="recordingBusy" title="Clear held peaks and clipping warnings without interrupting recording">Reset peaks &amp; warning</button>
-                            </div>
-                            <template x-for="(label, channel) in ['L', 'R']" :key="label">
-                                <div class="vf-input-channel">
-                                    <span class="text-xs font-mono text-secondary" x-text="label"></span>
-                                    <div class="vf-input-meter" role="meter" :aria-label="`${label} input level`" aria-valuemin="-60" aria-valuemax="0" :aria-valuenow="Math.max(-60, Math.min(0, recorder.levels[channel] ?? -120))" :aria-valuetext="`${recordingDbLabel(recorder.levels[channel])} dBFS; held peak ${recordingDbLabel(recordingPeak(channel))} dBFS${recorder.clipping[channel] ? '; clipping detected' : ''}`">
-                                        <div class="vf-leds" aria-hidden="true"><template x-for="(seg, i) in ledSegments(recorder.levels[channel])" :key="i"><i :class="seg"></i></template></div>
-                                        <div class="vf-meter-target" aria-hidden="true"></div>
-                                        <div class="vf-meter-aim" aria-hidden="true"></div>
-                                        <div class="vf-meter-peak" :class="recorder.clipping[channel] ? 'clipped' : ''" x-show="recordingPeak(channel) > -100" :style="`left:${recordingMeterWidth(recordingPeak(channel))}%`" aria-hidden="true"></div>
-                                    </div>
-                                    <span class="vf-meter-reading text-xs font-mono text-secondary"><span x-text="`${recordingDbLabel(recorder.levels[channel])} dBFS`"></span><span :class="recorder.clipping[channel] ? 'vf-bad' : 'text-muted'" x-text="`${recorder.clipping[channel] ? 'CLIP · ' : ''}peak ${recordingDbLabel(recordingPeak(channel))}`"></span></span>
-                                </div>
-                            </template>
-                            <div class="vf-input-channel" aria-hidden="true"><span></span><div class="vf-meter-scale"><span style="left:0">−60</span><span style="left:50%">−30</span><span class="vf-ok" style="left:80%">−12</span><span class="vf-ok" style="left:90%">−6</span><span style="left:100%">0</span></div><span></span></div>
-                            <p class="text-xs text-muted">White line = highest peak since Reset. Play a loud passage and adjust input gain on your interface; then Learn silence. Reset clears the warning, not any distortion already recorded.</p>
-                            <p x-show="recordingClipChannels" x-cloak role="status" aria-live="polite" class="text-sm rounded-lg p-3 vf-bad" style="background:var(--vf-bad-soft)" x-text="`Clipping detected on ${recordingClipChannels}. Lower the input gain. This warning stays until Reset or a new recording/input monitor starts.`"></p>
-                        </div>
-
-                        <div x-show="flowRuler.length" x-cloak class="space-y-1.5">
-                            <div class="vf-ruler">
-                                <template x-for="t in flowRuler" :key="t.position">
-                                    <div :class="{ now: t.now }" :style="`flex: ${t.length}`" :title="`${t.position} ${t.title}`">
-                                        <span class="fill" :style="`width: ${t.fill * 100}%`"></span>
-                                        <span class="txt" x-text="`${t.position} ${t.title}`"></span>
-                                    </div>
-                                </template>
-                            </div>
-                            <p class="text-xs text-muted" x-show="flowNowPlaying && recorder.state === 'recording'" x-text="flowNowPlaying ? `Probably playing ${flowNowPlaying.position} ${flowNowPlaying.title}` : ''"></p>
-                        </div>
-
                         <!-- Paused at a flip -->
                         <div x-show="recorder.state === 'paused'" x-cloak class="rounded-xl p-4 border" style="border-color: rgba(240,179,35,0.45); background: var(--vf-amber-soft);">
                             <p class="text-lg text-primary font-semibold" x-text="`Flip to side ${recorder.side || 'B'}`"></p>
@@ -665,37 +593,81 @@
                             <button type="button" x-show="recordingActive" x-cloak class="vf-btn vf-btn-lg" @click="flowFinish()" :disabled="recordingBusy"><svg class="vf-icon" aria-hidden="true" focusable="false"><use href="#vf-icon-stop"></use></svg> Finish record</button>
                             <span x-show="recordingBusy" class="text-xs text-muted" role="status">Working…</span>
                         </div>
-                        <label class="flex items-center gap-2 text-sm text-secondary">
-                            <input type="checkbox" x-model="flow.autoFlip" :disabled="recordingActive">
-                            Pause by itself at the end of each side, and carry on when the needle drops
-                        </label>
-                        <div class="vf-panel p-4 space-y-3">
-                            <label class="flex items-center gap-2 text-sm text-secondary">
-                                <input type="checkbox" x-model="autoExportRecordings" :disabled="recordingActive">
-                                Auto-export clear matches after finishing (90+ match quality)
-                            </label>
-                            <p class="text-xs text-muted">Checks album identity, track lengths and silence at splits. AudD receives a 10-second excerpt if identification is needed. Uncertain recordings go to Library → Needs review. Start the next record while processing runs.</p>
-                            <label x-show="autoExportRecordings" class="text-sm text-secondary">Export format
-                                <select x-model="outputFormat" :disabled="recordingActive" class="vf-input mt-1"><option value="flac">FLAC</option><option value="mp3">MP3</option><option value="aiff">AIFF</option></select>
-                            </label>
-                            <label x-show="autoExportRecordings" class="flex items-center gap-2 text-sm text-secondary"><input type="checkbox" :checked="restorationLevel === 1" @change="restorationLevel = $event.target.checked ? 1 : 0" :disabled="recordingActive">Light audio cleanup</label>
+                        <p x-show="recordingError" x-cloak role="alert" class="text-sm rounded-lg p-3 vf-bad" style="background: var(--vf-bad-soft)" x-text="recordingError"></p>
+                        <div class="space-y-1.5" aria-label="Input levels">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <p class="text-xs text-secondary">Aim for peaks in <strong class="vf-ok">−12 to −6 dBFS</strong></p>
+                                <button type="button" class="vf-btn vf-btn-sm" @click="recordingAction('meters/reset')" :disabled="recordingBusy" title="The white line is the highest peak since the last reset. Play a loud passage and set the gain on your audio interface so peaks land in the green zone. Reset clears the line and the clipping warning, not distortion already recorded.">Reset peaks</button>
+                            </div>
+                            <template x-for="(label, channel) in ['L', 'R']" :key="label">
+                                <div class="vf-input-channel">
+                                    <span class="text-xs font-mono text-secondary" x-text="label"></span>
+                                    <div class="vf-input-meter" role="meter" :aria-label="`${label} input level`" aria-valuemin="-60" aria-valuemax="0" :aria-valuenow="Math.max(-60, Math.min(0, recorder.levels[channel] ?? -120))" :aria-valuetext="`${recordingDbLabel(recorder.levels[channel])} dBFS; held peak ${recordingDbLabel(recordingPeak(channel))} dBFS${recorder.clipping[channel] ? '; clipping detected' : ''}`">
+                                        <div class="vf-leds" aria-hidden="true"><template x-for="(seg, i) in ledSegments(recorder.levels[channel])" :key="i"><i :class="seg"></i></template></div>
+                                        <div class="vf-meter-target" aria-hidden="true"></div>
+                                        <div class="vf-meter-aim" aria-hidden="true"></div>
+                                        <div class="vf-meter-peak" :class="recorder.clipping[channel] ? 'clipped' : ''" x-show="recordingPeak(channel) > -100" :style="`left:${recordingMeterWidth(recordingPeak(channel))}%`" aria-hidden="true"></div>
+                                    </div>
+                                    <span class="vf-meter-reading text-xs font-mono text-secondary"><span x-text="`${recordingDbLabel(recorder.levels[channel])} dBFS`"></span><span :class="recorder.clipping[channel] ? 'vf-bad' : 'text-muted'" x-text="`${recorder.clipping[channel] ? 'CLIP · ' : ''}peak ${recordingDbLabel(recordingPeak(channel))}`"></span></span>
+                                </div>
+                            </template>
+                            <div class="vf-input-channel" aria-hidden="true"><span></span><div class="vf-meter-scale"><span style="left:0">−60</span><span style="left:50%">−30</span><span class="vf-ok" style="left:80%">−12</span><span class="vf-ok" style="left:90%">−6</span><span style="left:100%">0</span></div><span></span></div>
+                            <p x-show="recordingClipChannels" x-cloak role="status" aria-live="polite" class="text-sm rounded-lg p-3 vf-bad" style="background:var(--vf-bad-soft)" x-text="`Clipping detected on ${recordingClipChannels}. Lower the input gain. This warning stays until Reset or a new recording/input monitor starts.`"></p>
+                        </div>
+
+                        <div x-show="flowRuler.length" x-cloak class="space-y-1.5">
+                            <div class="vf-ruler">
+                                <template x-for="t in flowRuler" :key="t.position">
+                                    <div :class="{ now: t.now }" :style="`flex: ${t.length}`" :title="`${t.position} ${t.title}`">
+                                        <span class="fill" :style="`width: ${t.fill * 100}%`"></span>
+                                        <span class="txt" x-text="`${t.position} ${t.title}`"></span>
+                                    </div>
+                                </template>
+                            </div>
+                            <p class="text-xs text-muted" x-show="flowNowPlaying && recorder.state === 'recording'" x-text="flowNowPlaying ? `Probably playing ${flowNowPlaying.position} ${flowNowPlaying.title}` : ''"></p>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2" x-show="pendingFinishJobs.length || finishQueueError" x-cloak>
                             <button type="button" class="vf-btn vf-btn-sm" x-show="pendingFinishJobs.length" @click="setView('library')" x-text="`${activeFinishJobs.length} processing · ${reviewFinishJobs.length} need review`"></button>
                             <p class="text-sm vf-warn" x-show="finishQueueError" x-text="finishQueueError"></p>
                         </div>
-                        <details class="vf-panel p-4 space-y-3">
-                            <summary class="cursor-pointer text-sm text-secondary">Learn silence</summary>
-                            <p class="text-sm text-secondary">With input monitoring on, put the needle in a spinning groove with no music for 10 seconds. Keep the same input gain. Brief clicks are tolerated; avoid a run-out with loud repeating clicks.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <button type="button" class="vf-btn vf-btn-sm" @click="learnSilence()" :disabled="recordingBusy || recorder.state !== 'monitoring' || recorder.calibration?.state === 'listening'">Measure noise floor</button>
-                                <button type="button" class="vf-btn vf-btn-sm" x-show="recorder.calibration?.state === 'listening'" @click="learnSilence('cancel')">Cancel</button>
-                                <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" x-show="recorder.calibration?.state === 'ready'" @click="learnSilence('apply')" :disabled="recordingActive">Apply threshold</button>
+                        <details class="vf-panel p-4">
+                            <summary class="cursor-pointer text-sm text-secondary">Options
+                                <span class="text-muted" x-text="`· auto flip ${flow.autoFlip ? 'on' : 'off'} · auto export ${autoExportRecordings && autoExportReady ? 'on' : 'off'}`"></span></summary>
+                            <div class="space-y-5 mt-4">
+                                <label class="flex items-center gap-2 text-sm text-secondary">
+                                    <input type="checkbox" x-model="flow.autoFlip" :disabled="recordingActive">
+                                    Pause by itself at the end of each side, and carry on when the needle drops
+                                </label>
+                                <div class="space-y-3">
+                                    <label class="flex items-center gap-2 text-sm text-secondary">
+                                        <input type="checkbox" x-model="autoExportRecordings" :disabled="recordingActive || !autoExportReady">
+                                        Export by itself after Finish when the match is clear
+                                    </label>
+                                    <p x-show="!autoExportReady" class="text-xs vf-warn">Needs an AudD token or an album picked from Discogs before recording. Without one, Finish takes you to the tracks and you press Export yourself.</p>
+                                    <p x-show="autoExportReady" class="text-xs text-muted">Checks the album, track lengths and the silence at each split. Anything uncertain waits in Library → Needs review. You can start the next record while it exports.</p>
+                                    <div x-show="autoExportRecordings && autoExportReady" class="flex flex-wrap items-center gap-4">
+                                        <label class="text-sm text-secondary">Format
+                                            <select x-model="outputFormat" :disabled="recordingActive" class="vf-input mt-1"><option value="flac">FLAC</option><option value="mp3">MP3</option><option value="aiff">AIFF</option></select>
+                                        </label>
+                                        <label class="flex items-center gap-2 text-sm text-secondary"><input type="checkbox" :checked="restorationLevel === 1" @change="restorationLevel = $event.target.checked ? 1 : 0" :disabled="recordingActive">Light audio cleanup</label>
+                                    </div>
+                                </div>
+                                <div class="space-y-3 border-t pt-4" style="border-color: var(--vf-line)">
+                                    <p class="text-sm text-primary font-semibold">Learn silence</p>
+                                    <p class="text-sm text-secondary">With input monitoring on, put the needle in a spinning groove with no music for 10 seconds. Keep the same input gain. Brief clicks are tolerated; avoid a run-out with loud repeating clicks.</p>
+                                    <div class="flex flex-wrap gap-2">
+                                        <button type="button" class="vf-btn vf-btn-sm" @click="learnSilence()" :disabled="recordingBusy || recorder.state !== 'monitoring' || recorder.calibration?.state === 'listening'">Measure noise floor</button>
+                                        <button type="button" class="vf-btn vf-btn-sm" x-show="recorder.calibration?.state === 'listening'" @click="learnSilence('cancel')">Cancel</button>
+                                        <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" x-show="recorder.calibration?.state === 'ready'" @click="learnSilence('apply')" :disabled="recordingActive">Apply threshold</button>
+                                    </div>
+                                    <p class="text-sm text-secondary" role="status" x-show="recorder.calibration?.state === 'listening'" x-text="`Listening… ${recorder.calibration?.seconds || 0} / 10 seconds`"></p>
+                                    <p class="text-sm text-secondary" x-show="recorder.calibration?.threshold != null" x-text="`Suggested silence threshold: ${recorder.calibration?.threshold} dBFS`"></p>
+                                    <p class="text-sm text-muted" x-text="recorder.calibration?.message || 'Measures levels locally. No audio is saved or uploaded.'"></p>
+                                    <p class="text-sm vf-warn" x-show="silenceLearningError" x-text="silenceLearningError"></p>
+                                </div>
                             </div>
-                            <p class="text-sm text-secondary" role="status" x-show="recorder.calibration?.state === 'listening'" x-text="`Listening… ${recorder.calibration?.seconds || 0} / 10 seconds`"></p>
-                            <p class="text-sm text-secondary" x-show="recorder.calibration?.threshold != null" x-text="`Suggested silence threshold: ${recorder.calibration?.threshold} dBFS`"></p>
-                            <p class="text-sm text-muted" x-text="recorder.calibration?.message || 'Measures levels locally. No audio is saved or uploaded.'"></p>
-                            <p class="text-sm vf-warn" x-show="silenceLearningError" x-text="silenceLearningError"></p>
                         </details>
-                        <p x-show="recordingError" x-cloak role="alert" class="text-sm rounded-lg p-3 vf-bad" style="background: var(--vf-bad-soft)" x-text="recordingError"></p>
                     </div>
                 </div>
             </section>
@@ -830,6 +802,43 @@
                     </div>
                 </div>
             </section>
+            <section id="live-recognition" x-show="['add', 'record'].includes(flow.step) || (flow.step === 'review' && (flowRecognition?.song || flowRecognition?.candidates?.length))" class="vf-panel p-5 space-y-3" aria-label="Automatic song recognition">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <label class="flex items-center gap-2 text-sm text-primary font-semibold">
+                        <input type="checkbox" x-model="identifyAlbum" :disabled="recordingActive || recordingBusy || flow.releaseOrigin === 'manual'">
+                        Identify the album while recording
+                    </label>
+                    <button type="button" class="vf-btn vf-btn-sm" @click="openRecognitionSettings()" x-text="songRecognition.configured ? 'AudD settings' : 'Set up AudD'"></button>
+                </div>
+                <p role="status" class="text-sm text-secondary" x-text="flowRecognitionMessage"></p>
+                <p class="text-xs text-muted">AudD receives a 10-second excerpt from the WAV being recorded, with one retry around 3 minutes if needed. Recording continues; the original WAV stays local.</p>
+                <p x-show="!discogsConfigured" class="text-xs vf-warn">Add your Discogs token in Settings too, so the identified song can load its album and tracklist.</p>
+                <p x-show="flowRecognition?.song" class="text-sm text-primary" x-text="flowRecognition?.song ? `Identified: ${flowRecognition.song.artist} — ${flowRecognition.song.title}` : ''"></p>
+                <template x-if="flowRecognition?.selected_release">
+                    <div class="flex items-center gap-3">
+                        <img x-show="flowRecognition.selected_release.cover_url" :src="flowRecognition.selected_release.cover_url || ''" alt="Likely album cover" class="w-16 h-16 rounded object-cover" referrerpolicy="no-referrer">
+                        <div>
+                            <p class="text-sm text-primary font-semibold" x-text="`${flowRecognition.selected_release.artist} — ${flowRecognition.selected_release.title}`"></p>
+                            <p class="text-xs text-muted">Likely album · exact pressing unconfirmed</p>
+                            <a :href="`https://www.discogs.com/release/${flowRecognition.selected_release.id}`" target="_blank" rel="noopener noreferrer" class="text-xs underline">View on Discogs</a>
+                        </div>
+                    </div>
+                </template>
+                <details x-show="flowRecognition?.candidates?.length">
+                    <summary class="text-sm text-secondary cursor-pointer">Choose or correct the album</summary>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <template x-for="candidate in (flowRecognition?.candidates || [])" :key="candidate.id">
+                            <button type="button" class="vf-btn vf-btn-sm" :disabled="recognitionBusy" @click="recognitionAction('select', {recording_id: recorder.id, release_id: candidate.id})" x-text="`${candidate.artist} — ${candidate.title} (${candidate.year || 'year unknown'})`"></button>
+                        </template>
+                        <button type="button" class="vf-btn vf-btn-sm vf-btn-ghost" :disabled="recognitionBusy" @click="recognitionAction('select', {recording_id: recorder.id, release_id: null})">Dismiss suggestion</button>
+                    </div>
+                </details>
+                <button type="button" x-show="flowRecognition && recorder.seconds >= 10" class="vf-btn vf-btn-sm" @click="recognitionAction('identify')"
+                        :disabled="recognitionBusy || ['identifying', 'looking_up'].includes(flowRecognition?.state) || (!songRecognition.configured && !flowRecognition?.song)"
+                        x-text="flowRecognition?.song ? 'Retry Discogs lookup' : 'Identify now'"></button>
+                <p x-show="recognitionNotice" role="status" class="text-xs text-secondary" x-text="recognitionNotice"></p>
+                <p x-show="flowRecognition?.persistence_warning" class="text-xs vf-warn" x-text="flowRecognition?.persistence_warning"></p>
+            </section>
         </main>
 
         <!-- ============================================================ LIBRARY -->
@@ -855,7 +864,7 @@
                             <p class="text-xs text-muted" x-text="job.message"></p>
                             <p class="text-xs text-muted" x-show="job.score != null" x-text="`Match quality ${job.score}/100 · not a probability`"></p>
                         </div>
-                        <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" x-show="job.state === 'needs_review'" @click="openFinishReview(job)" :disabled="analyzing || isProcessing">Review splits &amp; album</button>
+                        <button type="button" class="vf-btn vf-btn-sm vf-btn-primary" x-show="job.state === 'needs_review'" @click="openFinishReview(job)" :disabled="analyzing || isProcessing">Review &amp; export</button>
                     </div>
                 </template>
             </section>

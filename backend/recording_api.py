@@ -108,6 +108,13 @@ async def monitor(settings: InputSettings, request: Request):
     return await call(rec.monitor, **settings.model_dump())
 
 
+def apply_side_levels(rec, quiet_db):
+    """End-of-side and needle-drop levels: the learned noise floor, else the built-in defaults."""
+    from recording import SideEndDetector
+    rec._detector.QUIET_DB = quiet_db if quiet_db is not None else SideEndDetector.QUIET_DB
+    rec._detector.LOUD_DB = quiet_db + 10 if quiet_db is not None else SideEndDetector.LOUD_DB
+
+
 @router.post('/silence/{action}')
 async def learn_silence(action: Literal['start', 'cancel', 'apply'], request: Request):
     rec = local_recorder(request)
@@ -118,8 +125,10 @@ async def learn_silence(action: Literal['start', 'cancel', 'apply'], request: Re
     from backend import api
     settings = await api.update_config(api.ConfigUpdate(silence_threshold=result['threshold']))
     # Same noise floor for automatic end-of-side detection; preserve a louder resume gate.
-    rec._detector.QUIET_DB = result['threshold']
-    rec._detector.LOUD_DB = result['threshold'] + 10
+    if not api.config.save_side_quiet_db(result['threshold']):
+        raise HTTPException(503, 'Could not save the learned silence level. Check settings folder permissions.')
+    api.config.side_quiet_db = result['threshold']
+    apply_side_levels(rec, result['threshold'])
     result = rec.calibration.applied()
     return {'calibration': result, 'config': settings}
 
@@ -128,9 +137,7 @@ async def learn_silence(action: Literal['start', 'cancel', 'apply'], request: Re
 async def start(body: StartRecording, request: Request):
     rec = local_recorder(request)
     from backend import api
-    if api.config.learned_silence:
-        rec._detector.QUIET_DB = api.audio_processor.silence_threshold
-        rec._detector.LOUD_DB = api.audio_processor.silence_threshold + 10
+    apply_side_levels(rec, api.config.side_quiet_db)
     result = await call(rec.start, body.title, body.auto_flip, body.side_lengths)
     if recognition is not None:
         await call(recognition.begin, result["id"], body.identify_album)

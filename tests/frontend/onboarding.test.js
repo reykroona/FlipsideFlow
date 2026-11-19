@@ -12,11 +12,13 @@ function setup() {
     return a;
 }
 (async () => {
-    // The launcher prompts for either missing service, but never interrupts live capture.
+    // The launcher prompts only while Discogs is missing, and never interrupts live capture.
     const a = setup();
+    a.updateSetupPrompt();
+    assert.strictEqual(a.setupRequired, true, 'no Discogs token yet: show the welcome dialog');
     a.discogsConfigured = true;
     a.updateSetupPrompt();
-    assert.strictEqual(a.setupRequired, true, 'existing Discogs users also discover AudD');
+    assert.strictEqual(a.setupRequired, false, 'AudD is optional: no dialog at every launch without it');
     a.songRecognition.configured = true;
     a.updateSetupPrompt();
     assert.strictEqual(a.setupRequired, false);

@@ -1658,9 +1658,10 @@ async def get_config():
 async def update_config(updates: ConfigUpdate):
     """Update configuration parameters."""
     if updates.silence_threshold is not None:
-        if not config._write_settings({'DEFAULT_SILENCE_THRESHOLD': updates.silence_threshold, 'LEARNED_SILENCE': True}):
+        # The splitting threshold only.  End-of-side detection keeps its own level, which
+        # only "Learn silence" sets: a Settings save must never change when recording pauses.
+        if not config._write_settings({'DEFAULT_SILENCE_THRESHOLD': updates.silence_threshold}):
             raise HTTPException(503, 'Could not save the silence threshold. Check settings folder permissions.')
-        config.learned_silence = True
         audio_processor.silence_threshold = updates.silence_threshold
     if updates.min_silence_duration is not None:
         audio_processor.min_silence_duration = updates.min_silence_duration

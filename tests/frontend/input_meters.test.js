@@ -34,5 +34,5 @@ const vinylApp = new Function(read('flow.js') + '\n' + read('app.js') + ';return
     // Input metering is available in both Record and Workbench.
     const html = read('index.html');
     assert.equal((html.match(/class="vf-meter-target"/g) || []).length, 2);
-    assert.equal((html.match(/Reset peaks &amp; warning/g) || []).length, 2);
+    assert.equal((html.match(/@click="recordingAction\('meters\/reset'\)"/g) || []).length, 2);
 })().catch(error => {console.error(error);process.exit(1)});

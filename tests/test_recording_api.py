@@ -68,7 +68,7 @@ def test_learn_silence_requires_monitor_and_persists_without_recording(env, monk
     from config import Config
     rec, client = env
     monkeypatch.setattr(api.config, '_settings_path', str(tmp_path / 'settings.json'))
-    monkeypatch.setattr(api.config, 'learned_silence', False)
+    monkeypatch.setattr(api.config, 'side_quiet_db', None)
     monkeypatch.setattr(api.audio_processor, 'silence_threshold', -40)
     assert client.post('/api/recording/silence/start').status_code == 409
     assert client.post('/api/recording/monitor', json=dict(device=0, device_name='Scarlett USB', left=1, right=2, rate=48000)).status_code == 200
@@ -82,6 +82,7 @@ def test_learn_silence_requires_monitor_and_persists_without_recording(env, monk
     assert not rec.saved()  # calibration does not create audio files
     settings = json.loads((tmp_path / 'settings.json').read_text())
     assert settings['DEFAULT_SILENCE_THRESHOLD'] == -46
+    assert settings['SIDE_QUIET_DB'] == -46
     monkeypatch.setenv('VINYLFLOW_CONFIG_DIR', str(tmp_path))
     assert Config().default_silence_threshold == -46
     client.post('/api/recording/start', json={})
@@ -108,3 +109,24 @@ def test_meter_reset_is_local_and_preserves_live_capture(env):
     assert reset['state'] == 'recording'
     assert reset['id'] == before['id'] and reset['seconds'] == before['seconds']
     assert reset['peak_hold'] == [-120, -120] and reset['clipping'] == [False, False]
+
+
+def test_a_settings_save_never_changes_side_detection(env, monkeypatch, tmp_path):
+    """Saving Settings sends the splitting threshold too; that must not move the end-of-side
+    and needle-drop levels (an old LEARNED_SILENCE flag from such a save is ignored)."""
+    import json
+    from config import Config
+    from recording import SideEndDetector
+    rec, client = env
+    settings_path = tmp_path / 'settings.json'
+    settings_path.write_text(json.dumps({'LEARNED_SILENCE': True, 'DEFAULT_SILENCE_THRESHOLD': -40}))
+    monkeypatch.setenv('VINYLFLOW_CONFIG_DIR', str(tmp_path))
+    fresh = Config()
+    assert fresh.side_quiet_db is None and not fresh.learned_silence
+    monkeypatch.setattr(api, 'config', fresh)
+    assert client.put('/api/config', json={'silence_threshold': -40, 'output_dir': str(tmp_path)}).status_code == 200
+    assert 'SIDE_QUIET_DB' not in json.loads(settings_path.read_text())
+    client.post('/api/recording/monitor', json=dict(device=0, device_name='Scarlett USB', left=1, right=2, rate=48000))
+    client.post('/api/recording/start', json={})
+    assert rec._detector.QUIET_DB == SideEndDetector.QUIET_DB == -48
+    assert rec._detector.LOUD_DB == SideEndDetector.LOUD_DB == -38

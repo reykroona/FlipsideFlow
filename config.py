@@ -78,7 +78,9 @@ class Config:
         )
 
         # Audio processing settings
-        self.learned_silence = bool(json_settings.get("LEARNED_SILENCE", False))
+        # End-of-side / needle-drop level, written only by "Learn silence" (SIDE_QUIET_DB).
+        # The old LEARNED_SILENCE flag is ignored: any Settings save used to set it.
+        self.side_quiet_db = self._optional_db(json_settings.get("SIDE_QUIET_DB"))
         self.default_silence_threshold = float(json_settings.get("DEFAULT_SILENCE_THRESHOLD", os.getenv("DEFAULT_SILENCE_THRESHOLD", "-40")))
         self.default_min_silence_duration = float(os.getenv("DEFAULT_MIN_SILENCE_DURATION", "1.5"))
         self.default_min_track_length = float(os.getenv("DEFAULT_MIN_TRACK_LENGTH", "30"))
@@ -101,6 +103,21 @@ class Config:
         # Playback volume for the in-app player (0.0-1.0), remembered across launches:
         # the desktop webview starts in private mode, so browser storage does not persist.
         self.playback_volume = self._clamp_volume(json_settings.get('PLAYBACK_VOLUME', 1.0))
+
+    @property
+    def learned_silence(self) -> bool:
+        return self.side_quiet_db is not None
+
+    @staticmethod
+    def _optional_db(value):
+        try:
+            level = float(value)
+        except (TypeError, ValueError):
+            return None
+        return level if -90 <= level <= -10 else None
+
+    def save_side_quiet_db(self, level: float) -> bool:
+        return self._write_settings({'SIDE_QUIET_DB': level})
 
     @staticmethod
     def _clamp_volume(value) -> float:

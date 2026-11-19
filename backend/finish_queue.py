@@ -7,6 +7,7 @@ work requires review instead of silently repeating an export or paid lookup.
 import asyncio
 import copy
 import json
+import logging
 import threading
 import time
 import uuid
@@ -21,6 +22,7 @@ from finish_quality import choose_scope, quality
 from audio_processor import background_audio
 
 router = APIRouter(prefix='/api/recording/finish-queue')
+logger = logging.getLogger(__name__)
 export_lock = asyncio.Lock()
 _task = None
 _wake = None
@@ -147,9 +149,17 @@ async def run_job(job):
         elif recognition.get('selection') == 'manual' and not release:
             save(job, state='needs_review', message='Choose an album and review the splits before exporting.')
             return
+        elif not release and not song and (service is None or not service.provider.configured()):
+            # Nothing can identify it: say so, and still prepare silence-based splits when possible.
+            try:
+                tracks = (await api.analyze_file(api.AnalyzeRequest(file_id=session.id)))['tracks']
+            except Exception:
+                tracks = []
+            save(job, tracks=tracks, state='needs_review',
+                 message='No album was picked and no AudD token is set. Pick the album, check the tracks, then export.')
+            return
         elif not release:
             save(job, state='identifying', message='Identifying the song and album…')
-            if service is None: raise RecognitionError('Add your AudD token and identify this recording in Workbench.')
             if not song:
                 clip, offset = await asyncio.to_thread(choose_file_excerpt, session.source_audio, session.source_duration)
                 song = await asyncio.to_thread(service.provider.recognize, clip, _cancel)
@@ -199,8 +209,12 @@ async def run_job(job):
             save(job, state='complete', message='Exported to your library.', output_path=str(session.last_run.output_folder))
     except (Cancelled, asyncio.CancelledError):
         save(job, state='needs_review', message='Processing was interrupted. Review before exporting.')
-    except Exception:
-        # Provider errors and paths may contain credentials; keep UI/journal errors safe.
+    except Exception as exc:
+        # Provider errors and paths may contain credentials: log the type and where, never the message.
+        import traceback
+        where = traceback.extract_tb(exc.__traceback__)[-1] if exc.__traceback__ else None
+        logger.warning('Finish job %s failed: %s at %s:%s', job['id'], type(exc).__name__,
+                       where.filename.rsplit('/', 1)[-1] if where else '?', where.lineno if where else '?')
         save(job, state='needs_review', message='Automatic processing could not finish. Open this recording to identify it or review and export.')
     finally:
         worker_id.reset(token)

@@ -764,9 +764,10 @@ function vinylApp() {
             }
         },
 
+        /** The welcome dialog opens only while Discogs is missing. AudD is optional and paid,
+         *  so it is offered in that dialog, on the Record screen and in Settings, never at every launch. */
         updateSetupPrompt() {
-            this.setupRequired = !this.recordingActive && (!this.discogsConfigured
-                || (this.recordingEnabled && !this.songRecognition.configured));
+            this.setupRequired = !this.recordingActive && !this.discogsConfigured;
         },
 
         async saveDiscogsToken() {
@@ -836,6 +837,12 @@ function vinylApp() {
                     body: JSON.stringify(this.config)
                 });
                 const data = await response.json();
+                if (!response.ok) {
+                    // Keep the form as typed; a 422 body is not a config.
+                    const detail = Array.isArray(data.detail) ? 'Check the values in Advanced.' : (data.detail || `Error ${response.status}`);
+                    this.notify(`Settings not saved. ${detail}`, { type: 'error' });
+                    return;
+                }
                 this.config = data;
                 this.showSettings = false;
                 this.notify('Settings saved.', { type: 'success' });
