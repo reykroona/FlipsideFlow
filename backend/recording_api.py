@@ -97,6 +97,11 @@ async def devices(request: Request):
     return {"devices": await call(rec.devices)}
 
 
+@router.post('/meters/reset')
+async def reset_meters(request: Request):
+    return await call(local_recorder(request).reset_meters)
+
+
 @router.post("/monitor")
 async def monitor(settings: InputSettings, request: Request):
     rec = local_recorder(request)

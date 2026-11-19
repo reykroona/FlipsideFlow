@@ -347,3 +347,89 @@ def test_flip_at_the_end_of_the_last_side_is_not_kept(recorder):
     result = rec.stop()
     _, manifest = rec.open_saved(result["id"])
     assert manifest["side_markers"] == [4800]
+
+
+def test_peak_hold_catches_transients_between_polls_and_survives_idle(recorder):
+    rec = recorder
+    monitor(rec)
+    # Only one sample clips L; later quiet blocks arrive before the UI polls.
+    emit(rec, b'\xff\xff\x7f\x00\x00\x40')
+    emit(rec, b'\x00\x00\x10\x00\x00\x08' * 2048)
+    status = rec.status()
+    assert status['levels'] == [-18.1, -24.1]
+    assert status['peak_hold'] == [0.0, -6.0]
+    assert status['clipping'] == [True, False]
+    rec._meter_time = 0
+    status = rec.status()
+    assert status['levels'] == [-120, -120]
+    assert status['peak_hold'] == [0.0, -6.0]
+    assert status['clipping'] == [True, False]
+
+
+def test_reset_meters_does_not_stop_or_modify_recording(recorder):
+    rec = recorder
+    monitor(rec)
+    rec.start('Meter reset continuity')
+    first = b'\x00\x00\x40\x00\x00\x80' * 2048
+    second = b'\x00\x00\x20\x00\x00\x10' * 1024
+    emit(rec, first)
+    stream = rec._stream
+    before = rec.status()
+    reset = rec.reset_meters()
+    assert reset['id'] == before['id'] and reset['seconds'] == before['seconds']
+    assert reset['state'] == 'recording' and stream.active and rec._stream is stream
+    assert reset['peak_hold'] == [-120, -120] and reset['clipping'] == [False, False]
+    emit(rec, second)
+    status = rec.status()
+    assert status['peak_hold'] == [-12.0, -18.1]
+    result = rec.stop()
+    source, manifest = rec.open_saved(result['id'])
+    assert wav_data(source)[1] == first + second
+    assert manifest['side_markers'] == []
+
+
+def test_peak_hold_resets_at_start_and_monitor_but_not_flip(recorder):
+    rec = recorder
+    monitor(rec)
+    loud = b'\xff\xff\x7f\xff\xff\x7f' * 1024
+    emit(rec, loud)
+    assert rec.status()['clipping'] == [True, True]
+    started = rec.start()
+    assert started['peak_hold'] == [-120, -120]
+    assert started['clipping'] == [False, False]
+    emit(rec, loud)
+    paused = rec.pause(side_flip=True)
+    assert paused['peak_hold'] == [0., 0.] and paused['clipping'] == [True, True]
+    rec.resume()
+    emit(rec, bytes(6 * 1024))
+    assert rec.status()['peak_hold'] == [0., 0.]
+    stopped = rec.stop()
+    assert stopped['clipping'] == [True, True]
+    assert monitor(rec)['peak_hold'] == [-120, -120]
+    assert rec.status()['clipping'] == [False, False]
+
+
+def test_reset_while_writer_is_active_keeps_every_sample(recorder):
+    import threading
+    rec = recorder
+    monitor(rec)
+    rec.start('Concurrent meter resets')
+    block = b'\xff\xff\x7f\x00\x00\x20' * 128
+    errors = []
+    def feed():
+        try:
+            for _ in range(120): emit(rec, block)
+        except Exception as exc:
+            errors.append(exc)
+    writer = threading.Thread(target=feed)
+    writer.start()
+    for _ in range(120):
+        status = rec.reset_meters()
+        assert status['state'] == 'recording'
+        # The snapshot must not combine a cleared peak with an old clip latch.
+        assert not status['clipping'][0] or status['peak_hold'][0] == 0
+    writer.join(timeout=5)
+    assert not writer.is_alive() and not errors
+    finished = rec.stop()
+    source, _ = rec.open_saved(finished['id'])
+    assert wav_data(source)[1] == block * 120

@@ -15,7 +15,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Use FlipsideFlow
 
-- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.6/FlipsideFlow-0.1.0-beta.6-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
+- 🖥️ **Desktop app (Apple Silicon Mac):** [Download the app ZIP](https://github.com/reykroona/FlipsideFlow/releases/download/v0.1.0-beta.7/FlipsideFlow-0.1.0-beta.7-macos-arm64.zip), or browse [releases](https://github.com/reykroona/FlipsideFlow/releases). No Docker, Python, or FFmpeg installation required. See [Desktop Apps (Beta)](#desktop-apps-beta) for installation.
 - 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
 - ⚙️ **Python local mode:** see [Manual Setup (Non-Docker)](#manual-setup-non-docker)
 
@@ -126,7 +126,7 @@ Tokens are stored locally and persist across app restarts. If one service fails 
 
 The downloadable beta is for **Apple Silicon Macs (M1 or newer) running macOS 14 Sonoma or later**. Windows and Intel Mac packaging recipes are included in the source, but this release supplies only an ARM64 Mac app.
 
-1. Download `FlipsideFlow-0.1.0-beta.6-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
+1. Download `FlipsideFlow-0.1.0-beta.7-macos-arm64.zip` from [Releases](https://github.com/reykroona/FlipsideFlow/releases).
 2. Unzip it and drag **FlipsideFlow.app** to **Applications**. Quit an older running copy before opening the new one.
 3. The beta is ad-hoc signed and **not notarized by Apple**. If macOS blocks it, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm.
 4. Allow microphone access when prompted, connect your Scarlett, and select its CoreAudio input. AudD and Discogs tokens are needed only for their online features.
@@ -550,3 +550,8 @@ Automatic export requires a match-quality score of at least **90/100**, plus mat
 Before recording, open **Record → Learn silence** with the input monitor running. Put the needle into a spinning groove with no music, keep your normal recording gain, and choose **Measure noise floor**. After ten seconds, **Apply threshold** saves the suggested level to Settings and uses it for basic silence detection and automatic side-end detection. No calibration audio is saved or uploaded. Guided splitting also uses its existing adaptive smoothing; calibration does not replace its album/timing checks.
 
 The measurement uses short RMS frames and a percentile to resist sparse clicks. Almost-zero input, loud samples and highly uneven noise are rejected. Basic gap detection and side-end detection now tolerate isolated bursts up to 100 ms when the surrounding interval is at least 90% quiet. Frequent/long pops, music, and a loud repeating run-out click can still prevent detection. Use another quiet groove if needed; relearn after changing gain, cartridge or input. Check the first few records' split points: very quiet musical passages can resemble surface noise.
+
+
+### Input peak meters (Beta 7)
+
+Both Record and Workbench show a marked **−12 to −6 dBFS** target range, a **−12 dBFS** aim line, and a held peak for each channel. Play a loud passage and adjust gain on the interface; then run Learn silence. Held peaks are measured in the audio writer, so brief peaks between UI polls are retained. A white marker shows the maximum since reset; clipping turns it red and latches a channel-specific warning. **Reset peaks & warning** clears those indicators without stopping capture or modifying audio. Starting a new recording or input monitor also resets them; pausing, flipping, resuming, and reloading the window do not. Reset cannot repair distortion already recorded.

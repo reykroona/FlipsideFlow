@@ -317,6 +317,22 @@
         .vf-input { background: var(--vf-well); border: 1px solid var(--vf-line); border-radius: 10px; padding: 10px 14px; color: var(--vf-fg); width: 100%; }
         .vf-input:focus { outline: none; border-color: var(--vf-amber); box-shadow: 0 0 0 3px var(--vf-amber-soft); }
         .vf-timer { font-family: var(--vf-font-mono); font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+        .vf-input-channel { display:grid; grid-template-columns:14px minmax(0,1fr) 112px; align-items:center; gap:10px; }
+        .vf-input-meter { position:relative; height:20px; background:var(--vf-well); border-radius:3px; }
+        .vf-input-meter .vf-leds { position:absolute; inset:4px 0; }
+        .vf-meter-target { position:absolute; left:80%; width:10%; top:-2px; bottom:-2px; background:var(--vf-ok-soft); border:1px solid var(--vf-ok); pointer-events:none; }
+        .vf-meter-aim { position:absolute; left:80%; top:-4px; bottom:-4px; border-left:1px dashed var(--vf-ok); pointer-events:none; }
+        .vf-meter-peak { position:absolute; top:-3px; bottom:-3px; width:2px; transform:translateX(-100%); background:var(--vf-fg); box-shadow:0 0 0 1px var(--vf-well); pointer-events:none; }
+        .vf-meter-peak.clipped { background:var(--vf-bad); }
+        .vf-meter-reading { display:flex; flex-direction:column; text-align:right; white-space:nowrap; }
+        .vf-meter-scale { position:relative; height:18px; font:10px var(--vf-font-mono); color:var(--vf-muted); }
+        .vf-meter-scale span { position:absolute; transform:translateX(-50%); }
+        .vf-meter-scale span:first-child { transform:none; }
+        .vf-meter-scale span:last-child { transform:translateX(-100%); }
+        @media (max-width:520px) {
+            .vf-input-channel { grid-template-columns:12px minmax(0,1fr) 90px; gap:6px; }
+            .vf-meter-scale span:nth-child(2) { display:none; }
+        }
         .vf-leds { display: grid; grid-template-columns: repeat(30, 1fr); gap: 2px; height: 12px; }
         .vf-leds i { background: #262B30; border-radius: 1px; }
         .vf-leds i.g { background: var(--vf-ok); box-shadow: 0 0 6px rgba(61,220,132,0.35); }
@@ -596,17 +612,25 @@
                         </div>
 
                         <div class="space-y-1.5" aria-label="Input levels">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <p class="text-xs text-secondary">Aim for peaks in <strong class="vf-ok">−12 to −6 dBFS</strong></p>
+                                <button type="button" class="vf-btn vf-btn-sm" @click="recordingAction('meters/reset')" :disabled="recordingBusy" title="Clear held peaks and clipping warnings without interrupting recording">Reset peaks &amp; warning</button>
+                            </div>
                             <template x-for="(label, channel) in ['L', 'R']" :key="label">
-                                <div class="grid items-center gap-2 text-xs font-mono text-muted" style="grid-template-columns: 14px 1fr 64px;">
-                                    <span x-text="label"></span>
-                                    <div class="vf-leds" role="meter" :aria-label="`${label} level`" aria-valuemin="-60" aria-valuemax="0" :aria-valuenow="Math.max(-60, recorder.levels[channel])">
-                                        <template x-for="(seg, i) in ledSegments(recorder.levels[channel])" :key="i"><i :class="seg"></i></template>
+                                <div class="vf-input-channel">
+                                    <span class="text-xs font-mono text-secondary" x-text="label"></span>
+                                    <div class="vf-input-meter" role="meter" :aria-label="`${label} input level`" aria-valuemin="-60" aria-valuemax="0" :aria-valuenow="Math.max(-60, Math.min(0, recorder.levels[channel] ?? -120))" :aria-valuetext="`${recordingDbLabel(recorder.levels[channel])} dBFS; held peak ${recordingDbLabel(recordingPeak(channel))} dBFS${recorder.clipping[channel] ? '; clipping detected' : ''}`">
+                                        <div class="vf-leds" aria-hidden="true"><template x-for="(seg, i) in ledSegments(recorder.levels[channel])" :key="i"><i :class="seg"></i></template></div>
+                                        <div class="vf-meter-target" aria-hidden="true"></div>
+                                        <div class="vf-meter-aim" aria-hidden="true"></div>
+                                        <div class="vf-meter-peak" :class="recorder.clipping[channel] ? 'clipped' : ''" x-show="recordingPeak(channel) > -100" :style="`left:${recordingMeterWidth(recordingPeak(channel))}%`" aria-hidden="true"></div>
                                     </div>
-                                    <span class="text-right" x-text="recorder.levels[channel] <= -100 ? '−∞ dB' : `${recorder.levels[channel]} dB`"></span>
+                                    <span class="vf-meter-reading text-xs font-mono text-secondary"><span x-text="`${recordingDbLabel(recorder.levels[channel])} dBFS`"></span><span :class="recorder.clipping[channel] ? 'vf-bad' : 'text-muted'" x-text="`${recorder.clipping[channel] ? 'CLIP · ' : ''}peak ${recordingDbLabel(recordingPeak(channel))}`"></span></span>
                                 </div>
                             </template>
-                            <p x-show="recorder.clipping.some(Boolean)" x-cloak class="text-xs vf-bad">Too loud: the signal clipped. Turn the gain down a little on the audio interface.</p>
-                            <p x-show="recorder.state === 'monitoring'" class="text-xs text-muted">Play a loud part of the record: the meters should reach the amber, never the red.</p>
+                            <div class="vf-input-channel" aria-hidden="true"><span></span><div class="vf-meter-scale"><span style="left:0">−60</span><span style="left:50%">−30</span><span class="vf-ok" style="left:80%">−12</span><span class="vf-ok" style="left:90%">−6</span><span style="left:100%">0</span></div><span></span></div>
+                            <p class="text-xs text-muted">White line = highest peak since Reset. Play a loud passage and adjust input gain on your interface; then Learn silence. Reset clears the warning, not any distortion already recorded.</p>
+                            <p x-show="recordingClipChannels" x-cloak role="status" aria-live="polite" class="text-sm rounded-lg p-3 vf-bad" style="background:var(--vf-bad-soft)" x-text="`Clipping detected on ${recordingClipChannels}. Lower the input gain. This warning stays until Reset or a new recording/input monitor starts.`"></p>
                         </div>
 
                         <div x-show="flowRuler.length" x-cloak class="space-y-1.5">
@@ -1185,20 +1209,28 @@
                                 <span class="font-semibold capitalize" x-text="recorder.state === 'monitoring' ? 'Checking levels' : recorder.state"></span>
                                 <span class="font-mono" x-text="formatTime(recorder.seconds || 0)"></span>
                             </div>
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <p class="text-xs text-secondary">Aim for peaks in <strong class="vf-ok">−12 to −6 dBFS</strong></p>
+                                <button type="button" class="vf-btn vf-btn-sm" @click="recordingAction('meters/reset')" :disabled="recordingBusy" title="Clear held peaks and clipping warnings without interrupting recording">Reset peaks &amp; warning</button>
+                            </div>
                             <template x-for="(label, channel) in ['L', 'R']" :key="label">
-                                <div class="flex items-center gap-2 text-xs">
-                                    <span class="w-3 text-secondary" x-text="label"></span>
-                                    <div role="meter" :aria-label="`${label} input level`" aria-valuemin="-60" aria-valuemax="0" :aria-valuenow="Math.max(-60, recorder.levels[channel])"
-                                         class="flex-1 h-3 rounded overflow-hidden" style="background-color:var(--vf-well)">
-                                        <div class="h-full" :style="`width:${recordingMeterWidth(recorder.levels[channel])}%;background-color:${recorder.clipping[channel] ? 'var(--vf-bad)' : 'var(--vf-ok)'}`"></div>
+                                <div class="vf-input-channel">
+                                    <span class="text-xs font-mono text-secondary" x-text="label"></span>
+                                    <div class="vf-input-meter" role="meter" :aria-label="`${label} input level`" aria-valuemin="-60" aria-valuemax="0" :aria-valuenow="Math.max(-60, Math.min(0, recorder.levels[channel] ?? -120))" :aria-valuetext="`${recordingDbLabel(recorder.levels[channel])} dBFS; held peak ${recordingDbLabel(recordingPeak(channel))} dBFS${recorder.clipping[channel] ? '; clipping detected' : ''}`">
+                                        <div class="vf-leds" aria-hidden="true"><template x-for="(seg, i) in ledSegments(recorder.levels[channel])" :key="i"><i :class="seg"></i></template></div>
+                                        <div class="vf-meter-target" aria-hidden="true"></div>
+                                        <div class="vf-meter-aim" aria-hidden="true"></div>
+                                        <div class="vf-meter-peak" :class="recorder.clipping[channel] ? 'clipped' : ''" x-show="recordingPeak(channel) > -100" :style="`left:${recordingMeterWidth(recordingPeak(channel))}%`" aria-hidden="true"></div>
                                     </div>
-                                    <span class="w-16 text-right font-mono text-secondary" x-text="recorder.levels[channel] <= -100 ? '−∞ dB' : `${recorder.levels[channel]} dB`"></span>
+                                    <span class="vf-meter-reading text-xs font-mono text-secondary"><span x-text="`${recordingDbLabel(recorder.levels[channel])} dBFS`"></span><span :class="recorder.clipping[channel] ? 'vf-bad' : 'text-muted'" x-text="`${recorder.clipping[channel] ? 'CLIP · ' : ''}peak ${recordingDbLabel(recordingPeak(channel))}`"></span></span>
                                 </div>
                             </template>
+                            <div class="vf-input-channel" aria-hidden="true"><span></span><div class="vf-meter-scale"><span style="left:0">−60</span><span style="left:50%">−30</span><span class="vf-ok" style="left:80%">−12</span><span class="vf-ok" style="left:90%">−6</span><span style="left:100%">0</span></div><span></span></div>
+                            <p class="text-xs text-muted">White line = highest peak since Reset. Play a loud passage and adjust input gain on your interface; then Learn silence. Reset clears the warning, not any distortion already recorded.</p>
+                            <p x-show="recordingClipChannels" x-cloak role="status" aria-live="polite" class="text-sm rounded-lg p-3 vf-bad" style="background:var(--vf-bad-soft)" x-text="`Clipping detected on ${recordingClipChannels}. Lower the input gain. This warning stays until Reset or a new recording/input monitor starts.`"></p>
                             <div class="flex items-center gap-px overflow-hidden" style="height:32px" aria-hidden="true">
                                 <template x-for="(peak, i) in recordingHistory" :key="i"><div style="background:var(--vf-muted);flex:1;min-width:2px" :style="`height:${Math.max(2, peak)}%`"></div></template>
                             </div>
-                            <p x-show="recorder.clipping.some(Boolean)" class="text-xs" style="color:var(--vf-bad)">Clipping detected. Lower the gain on your Scarlett. The indicator resets when a new recording starts.</p>
                             <p x-show="recorder.state === 'paused'" class="text-xs text-secondary">Paused audio is not saved. Flip the record, then resume.</p>
                         </div>
                         <div class="flex flex-wrap gap-2">

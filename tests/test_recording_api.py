@@ -89,3 +89,22 @@ def test_learn_silence_requires_monitor_and_persists_without_recording(env, monk
     assert client.post('/api/recording/silence/apply').status_code == 409
     remote = TestClient(api.app, client=('192.168.1.5', 5000))
     assert remote.post('/api/recording/silence/start').status_code == 403
+
+
+def test_meter_reset_is_local_and_preserves_live_capture(env):
+    rec, client = env
+    client.post('/api/recording/monitor', json=dict(device=0, device_name='Scarlett USB', left=1, right=2, rate=48000))
+    client.post('/api/recording/start', json={})
+    emit(rec, b'\xff\xff\x7f\x00\x00\x40' * 2048)
+    before = client.get('/api/recording/status').json()
+    assert before['peak_hold'] == [0., -6.]
+    remote = TestClient(api.app, client=('192.168.1.5', 5000))
+    assert remote.post('/api/recording/meters/reset', json={}).status_code == 403
+    assert client.post('/api/recording/meters/reset', json={}, headers={'Origin':'https://evil.example'}).status_code == 403
+    assert rec.status()['clipping'] == [True, False]
+    response = client.post('/api/recording/meters/reset', json={})
+    assert response.status_code == 200
+    reset = response.json()
+    assert reset['state'] == 'recording'
+    assert reset['id'] == before['id'] and reset['seconds'] == before['seconds']
+    assert reset['peak_hold'] == [-120, -120] and reset['clipping'] == [False, False]

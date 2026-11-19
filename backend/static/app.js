@@ -72,7 +72,7 @@ function vinylApp() {
 
         // macOS desktop recorder; the backend owns capture across UI reloads.
         recordingEnabled: false,
-        recorder: { state: 'idle', levels: [-120, -120], clipping: [false, false], seconds: 0, side_markers: [] },
+        recorder: { state: 'idle', levels: [-120, -120], peak_hold: [-120, -120], clipping: [false, false], seconds: 0, side_markers: [] },
         recordingDevices: [],
         recordingInput: { device: '', device_name: '', left: 1, right: 2, rate: 48000 },
         recordingTitle: '',
@@ -329,7 +329,19 @@ function vinylApp() {
         },
 
         recordingMeterWidth(db) {
-            return Math.max(0, Math.min(100, (db + 60) / 60 * 100));
+            return Number.isFinite(db) ? Math.max(0, Math.min(100, (db + 60) / 60 * 100)) : 0;
+        },
+
+        recordingDbLabel(db) {
+            return !Number.isFinite(db) || db <= -100 ? '−∞' : db.toFixed(1);
+        },
+
+        recordingPeak(channel) {
+            return this.recorder.peak_hold?.[channel] ?? -120;
+        },
+
+        get recordingClipChannels() {
+            return ['L', 'R'].filter((label, channel) => this.recorder.clipping?.[channel]).join(' & ');
         },
 
         async recordingRequest(path, body) {

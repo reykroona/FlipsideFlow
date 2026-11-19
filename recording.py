@@ -130,6 +130,8 @@ class Recorder:
         self._folder_lock = None
         self._state = "idle"
         self._error = None
+        self._meter_lock = threading.Lock()
+        self._peak_hold = [0.0, 0.0]
         self._levels = [0.0, 0.0]
         self._clips = [False, False]
         self._meter_time = 0.0
@@ -206,7 +208,8 @@ class Recorder:
             self._overflows = 0
             self._manifest = None
             self._bytes = 0
-            self._levels, self._clips = [0.0, 0.0], [False, False]
+            with self._meter_lock:
+                self._levels, self._peak_hold, self._clips = [0.0, 0.0], [0.0, 0.0], [False, False]
             settings = self.audio.CoreAudioSettings(channel_map=[left - 1, right - 1],
                                                     change_device_parameters=True,
                                                     fail_if_conversion_required=True)
@@ -288,9 +291,11 @@ class Recorder:
                 values = (values ^ 0x800000) - 0x800000
                 self.calibration.feed(values, self._settings["rate"])
                 peaks = np.max(np.abs(values), axis=0) / 8388608.0
-                self._levels = peaks.tolist()
-                self._meter_time = time.monotonic()
-                self._clips = [bool(old or peak >= 0.999) for old, peak in zip(self._clips, peaks)]
+                with self._meter_lock:
+                    self._levels = peaks.tolist()
+                    self._peak_hold = [max(old, float(peak)) for old, peak in zip(self._peak_hold, peaks)]
+                    self._meter_time = time.monotonic()
+                    self._clips = [bool(old or peak >= 0.999) for old, peak in zip(self._clips, peaks)]
                 live = recording or self._auto_live
                 if live and self._file is not None and not self._error:
                     self._file.write(data)
@@ -427,7 +432,8 @@ class Recorder:
                                   channels=2, bit_depth=24, input=self._settings.copy(),
                                   side_markers=[], pause_markers=[], state="recording", created_at=datetime.now().isoformat())
             self._bytes = 0
-            self._clips = [False, False]
+            with self._meter_lock:
+                self._levels, self._peak_hold, self._clips = [0.0, 0.0], [0.0, 0.0], [False, False]
             self._auto_flip = bool(auto_flip)
             self._side_lengths = [float(x) if isinstance(x, (int, float)) and 0 < x < 7200 else 0.0
                                   for x in (side_lengths or [])][:26]
@@ -597,18 +603,34 @@ class Recorder:
             self._check_health()
             if self._state in ACTIVE_STATES:
                 self._auto_step()
-            levels = self._levels if time.monotonic() - self._meter_time < 1 else [0, 0]
+            with self._meter_lock:
+                levels = list(self._levels) if time.monotonic() - self._meter_time < 1 else [0, 0]
+                held = list(self._peak_hold)
+                clips = list(self._clips)
             return dict(calibration=self.calibration.status(), state=self._state, id=self._manifest["id"] if self._manifest else None,
                         title=self._manifest["title"] if self._manifest else "",
                         seconds=self._bytes / FRAME_BYTES / self._settings["rate"] if self._settings else 0,
                         levels=[round(20 * math.log10(max(p, 0.000001)), 1) for p in levels],
-                        clipping=list(self._clips), overflows=self._overflows, error=self._error,
+                        peak_hold=[round(20 * math.log10(max(p, 0.000001)), 1) for p in held],
+                        clipping=clips, overflows=self._overflows, error=self._error,
                         settings=self._settings, last_input=self.last_input(), directory=str(self.root),
                         free_bytes=shutil.disk_usage(self.root).free if self.root.exists() else None,
                         side_markers=list(self._manifest["side_markers"]) if self._manifest else [],
                         auto_flip=self._auto_flip, auto_waiting=self._auto_waiting and self._state == "paused",
                         auto_message=self._auto_message, side=self._side_letter(self._side_index),
                         side_seconds=self._side_frames / self._settings["rate"] if self._settings else 0)
+
+    def reset_meters(self):
+        """Clear held readings without stopping the stream or touching recorded samples.
+
+        The writer and UI only share this tiny lock, never the control lock:
+        control operations may drain the writer while holding _control.
+        """
+        with self._control:
+            with self._meter_lock:
+                self._peak_hold = [0.0, 0.0]
+                self._clips = [False, False]
+            return self.status()
 
     def learn_silence(self, action):
         with self._control:
